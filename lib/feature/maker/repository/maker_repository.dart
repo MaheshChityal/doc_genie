@@ -128,6 +128,112 @@ class MakerRepository {
     }
   }
 
+  /// Submits an auto-scan document using the flat payload format the API expects.
+  Future<void> submitAutoScanDocument({
+    required String documentId,
+    required TransactionType type,
+    required Map<String, String> fields,
+    required Function(DocumentModel) onSuccess,
+    required Function(CustomException) onfailure,
+  }) async {
+    final payload = <String, dynamic>{
+      'remitterAccountType': fields['remitterAccountType'] ?? '',
+      'remitterAccountNumber': fields['remitterAccountNumber'] ?? '',
+      'receiptMode': fields['receiptMode'] ?? '',
+      'chequeBasedTransaction': fields['chequeBasedTransaction'] ?? '',
+      'chequeNumber': fields['chequeNumber'] ?? '',
+      'chequeDate': _toIsoDate(fields['chequeDate'] ?? ''),
+      'amount':
+          double.tryParse((fields['amount'] ?? '').replaceAll(',', '')) ?? 0,
+      'amountInWords': fields['amountInWords'] ?? '',
+      'sendingInformation': fields['sendingInformation'] ?? '',
+      'instructionPriority': fields['instructionPriority'] ?? '',
+      'beneficiaryIFSCCode': fields['beneficiaryIFSCCode'] ?? '',
+      'beneficiaryAccountNumber': fields['beneficiaryAccountNumber'] ?? '',
+      'beneficiaryName': fields['beneficiaryName'] ?? '',
+      'beneficiaryAccountTypeCode': fields['beneficiaryAccountTypeCode'] ?? '',
+      'leiCode': fields['leiCode'] ?? '',
+      'narration': fields['narration'] ?? '',
+      'emailId': fields['emailId'] ?? '',
+    };
+
+    // ignore: avoid_print
+    print('[AutoScan Submit] payload: $payload');
+
+    if (useMock) {
+      await Future<void>.delayed(const Duration(milliseconds: 600));
+      onSuccess(
+        DocumentModel(
+          id: documentId,
+          referenceNumber: 'DG-$documentId',
+          transactionType: fields['receiptMode'] ?? type.label,
+          status: 'Pending',
+          submittedAt: _today(),
+          fields: fields,
+        ),
+      );
+      return;
+    }
+
+    try {
+      final response = await _client.request(
+        requestType: RequestType.postWithToken,
+        url: ApiConstants.autoScan,
+        parameter: payload,
+      );
+      final code = response.statusCode ?? 0;
+      if (code >= 200 && code < 300 && response.data != null) {
+        onSuccess(
+          DocumentModel.fromAutoScanJson(
+            Map<String, dynamic>.from(response.data as Map),
+          ),
+        );
+      } else {
+        onfailure(getCustomException(response.data));
+      }
+    } catch (ex) {
+      onfailure(getCustomException(ex));
+    }
+  }
+
+  /// Converts a human-readable date string ("9 Jul 2026") to ISO format
+  /// ("2026-07-09T00:00:00") for the submit API. Falls back to returning the
+  /// input unchanged if parsing fails.
+  static String _toIsoDate(String formatted) {
+    const monthMap = {
+      'Jan': 1,
+      'Feb': 2,
+      'Mar': 3,
+      'Apr': 4,
+      'May': 5,
+      'Jun': 6,
+      'Jul': 7,
+      'Aug': 8,
+      'Sep': 9,
+      'Oct': 10,
+      'Nov': 11,
+      'Dec': 12,
+    };
+    final parts = formatted.trim().split(' ');
+    if (parts.length == 3) {
+      final day = int.tryParse(parts[0]);
+      final month = monthMap[parts[1]];
+      final year = int.tryParse(parts[2]);
+      if (day != null && month != null && year != null) {
+        return '$year-${month.toString().padLeft(2, '0')}'
+            '-${day.toString().padLeft(2, '0')}T00:00:00';
+      }
+    }
+    // Already ISO or unparseable — return as-is
+    try {
+      final dt = DateTime.parse(formatted);
+      return '${dt.year}-${dt.month.toString().padLeft(2, '0')}'
+          '-${dt.day.toString().padLeft(2, '0')}T00:00:00';
+    } catch (_) {
+      return formatted;
+    }
+  }
+
   Future<void> fetchDocuments({
     required bool isAutoScan,
     required Function(List<DocumentModel>) onSuccess,

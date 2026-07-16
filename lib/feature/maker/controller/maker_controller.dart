@@ -96,17 +96,29 @@ class SubmitController extends StateNotifier<GenericState> {
     required Function(DocumentModel) onSuccess,
   }) async {
     state = const LoadingState();
-    await _repo.submitDocument(
-      documentId: documentId,
-      type: type,
-      fields: fields,
-      isEdited: isEdited,
-      onSuccess: (doc) {
-        state = LoadedState<DocumentModel>(response: doc);
-        onSuccess(doc);
-      },
-      onfailure: (ex) => state = ErrorState(ex),
-    );
+    void onSuccess_(DocumentModel doc) {
+      state = LoadedState<DocumentModel>(response: doc);
+      onSuccess(doc);
+    }
+
+    if (isAuto) {
+      await _repo.submitAutoScanDocument(
+        documentId: documentId,
+        type: type,
+        fields: fields,
+        onSuccess: onSuccess_,
+        onfailure: (ex) => state = ErrorState(ex),
+      );
+    } else {
+      await _repo.submitDocument(
+        documentId: documentId,
+        type: type,
+        fields: fields,
+        isEdited: isEdited,
+        onSuccess: onSuccess_,
+        onfailure: (ex) => state = ErrorState(ex),
+      );
+    }
   }
 
   void reset() => state = const InitialState();
