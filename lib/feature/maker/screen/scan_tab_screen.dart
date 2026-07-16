@@ -3,12 +3,13 @@ import 'package:doc_genie/constants/color_const.dart';
 import 'package:doc_genie/constants/text_styles.dart';
 import 'package:doc_genie/feature/maker/controller/maker_controller.dart';
 import 'package:doc_genie/feature/maker/model/scan_models.dart';
-import 'package:doc_genie/feature/maker/screen/maker_doc_detail_screen.dart';
+import 'package:doc_genie/feature/maker/widgets/maker_doc_dialog.dart';
 import 'package:doc_genie/feature/maker/widgets/transaction_form.dart';
-import 'package:doc_genie/utils/navigator_utils.dart';
 import 'package:doc_genie/utils/snackbar_utils.dart';
 import 'package:doc_genie/widgets/app_card.dart';
 import 'package:doc_genie/widgets/app_loader.dart';
+import 'package:doc_genie/widgets/paginated_list_view.dart';
+import 'package:doc_genie/widgets/search_field.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -26,15 +27,16 @@ class ScanTabScreen extends ConsumerStatefulWidget {
 
 class _ScanTabScreenState extends ConsumerState<ScanTabScreen> {
   PlatformFile? _pickedFile;
-  String? _autoFilter; // null = All
+  String? _autoFilter = 'Pending'; // null = All
+  String _searchQuery = '';
 
   StateNotifierProvider<ScanController, ScanState> get _scanProvider =>
       widget.isAuto ? autoScanControllerProvider : manualScanControllerProvider;
 
   StateNotifierProvider<SubmitController, GenericState> get _submitProvider =>
       widget.isAuto
-      ? autoSubmitControllerProvider
-      : manualSubmitControllerProvider;
+          ? autoSubmitControllerProvider
+          : manualSubmitControllerProvider;
 
   StateNotifierProvider<DocsController, GenericState> get _docsProvider =>
       widget.isAuto ? autoDocsControllerProvider : manualDocsControllerProvider;
@@ -91,16 +93,15 @@ class _ScanTabScreenState extends ConsumerState<ScanTabScreen> {
 
       final allDocs =
           (docsState as LoadedState<List<DocumentModel>>).response ??
-          const <DocumentModel>[];
+              const <DocumentModel>[];
       final pendingCount = allDocs.where((d) => d.status == 'Pending').length;
-      final approvedCount =
-          allDocs.where((d) => d.status == 'Approved').length;
-      final rejectedCount =
-          allDocs.where((d) => d.status == 'Rejected').length;
+      final approvedCount = allDocs.where((d) => d.status == 'Approved').length;
+      final rejectedCount = allDocs.where((d) => d.status == 'Rejected').length;
 
-      final filtered = _autoFilter == null
-          ? allDocs
-          : allDocs.where((d) => d.status == _autoFilter).toList();
+      final filtered = allDocs.where((d) {
+        final statusOk = _autoFilter == null || d.status == _autoFilter;
+        return statusOk && matchesDocQuery(d, _searchQuery);
+      }).toList();
 
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -147,6 +148,14 @@ class _ScanTabScreenState extends ConsumerState<ScanTabScreen> {
               ),
             ),
           ),
+          // Search
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+            child: SearchField(
+              hint: 'Search by reference, name, type…',
+              onChanged: (q) => setState(() => _searchQuery = q),
+            ),
+          ),
           // Document list
           Expanded(
             child: filtered.isEmpty
@@ -158,35 +167,35 @@ class _ScanTabScreenState extends ConsumerState<ScanTabScreen> {
                             size: 40, color: ColorConstants.textMuted),
                         const SizedBox(height: 12),
                         Text(
-                          _autoFilter == null
-                              ? 'No documents found'
-                              : 'No $_autoFilter documents',
+                          _searchQuery.isNotEmpty
+                              ? 'No documents match “$_searchQuery”'
+                              : _autoFilter == null
+                                  ? 'No documents found'
+                                  : 'No $_autoFilter documents',
                           style: AppTextStyles.caption,
+                          textAlign: TextAlign.center,
                         ),
                       ],
                     ),
                   )
-                : ListView.separated(
+                : PaginatedListView<DocumentModel>(
+                    items: filtered,
                     padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                    itemCount: filtered.length,
-                    separatorBuilder: (_, _) =>
-                        const SizedBox(height: 12),
-                    itemBuilder: (context, index) {
-                      final doc = filtered[index];
+                    resetKey: '$_autoFilter|$_searchQuery',
+                    separatorBuilder: (_, __) => const SizedBox(height: 12),
+                    itemBuilder: (context, doc, index) {
                       final isPending = doc.status == 'Pending';
                       return _AutoDocListCard(
                         doc: doc,
-                        onTap: () => navigate(
+                        onTap: () => showMakerDocDialog(
                           context,
-                          MakerDocDetailScreen(
-                            doc: doc,
-                            isEditable: isPending,
-                            onSubmitSuccess: isPending
-                                ? () => ref
-                                    .read(_docsProvider.notifier)
-                                    .removeDoc(doc.id)
-                                : null,
-                          ),
+                          doc: doc,
+                          isEditable: isPending,
+                          onSubmitSuccess: isPending
+                              ? () => ref
+                                  .read(_docsProvider.notifier)
+                                  .removeDoc(doc.id)
+                              : null,
                         ),
                       );
                     },
@@ -235,9 +244,7 @@ class _ScanTabScreenState extends ConsumerState<ScanTabScreen> {
                 initialValues: scanState.result!.fields,
                 isSubmitting: isSubmitting,
                 onSubmit: (fields, isEdited) async {
-                  await ref
-                      .read(_submitProvider.notifier)
-                      .submit(
+                  await ref.read(_submitProvider.notifier).submit(
                         documentId: scanState.result!.documentId,
                         type: scanState.result!.type,
                         fields: fields,
@@ -271,10 +278,22 @@ class _ScanTabScreenState extends ConsumerState<ScanTabScreen> {
             style: AppTextStyles.caption,
           ),
           const SizedBox(height: 14),
-          _DocsList(state: docsState, context: context),
+          if (_hasManualDocs(docsState)) ...[
+            SearchField(
+              hint: 'Search by reference, name, type…',
+              onChanged: (q) => setState(() => _searchQuery = q),
+            ),
+            const SizedBox(height: 14),
+          ],
+          _DocsList(state: docsState, searchQuery: _searchQuery),
         ],
       ),
     );
+  }
+
+  bool _hasManualDocs(GenericState state) {
+    if (state is! LoadedState<List<DocumentModel>>) return false;
+    return (state.response?.isNotEmpty ?? false);
   }
 
   void _showSuccess(BuildContext context, String refNo) {
@@ -473,14 +492,25 @@ class _ErrorBanner extends StatelessWidget {
   }
 }
 
+/// Client-side search predicate for a maker [DocumentModel].
+bool matchesDocQuery(DocumentModel d, String query) {
+  if (query.isEmpty) return true;
+  final q = query.toLowerCase();
+  return d.referenceNumber.toLowerCase().contains(q) ||
+      d.transactionType.toLowerCase().contains(q) ||
+      d.status.toLowerCase().contains(q) ||
+      (d.fields['beneficiaryName'] ?? '').toLowerCase().contains(q) ||
+      (d.fields['beneName'] ?? '').toLowerCase().contains(q);
+}
+
 class _DocsList extends StatelessWidget {
-  const _DocsList({required this.state, required this.context});
+  const _DocsList({required this.state, required this.searchQuery});
 
   final GenericState state;
-  final BuildContext context;
+  final String searchQuery;
 
   @override
-  Widget build(BuildContext _) {
+  Widget build(BuildContext context) {
     if (state is LoadingState || state is InitialState) {
       return const AppLoader();
     }
@@ -490,25 +520,32 @@ class _DocsList extends StatelessWidget {
         style: AppTextStyles.caption.copyWith(color: ColorConstants.errorColor),
       );
     }
-    final docs =
-        (state as LoadedState<List<DocumentModel>>).response ??
+    final all = (state as LoadedState<List<DocumentModel>>).response ??
         const <DocumentModel>[];
-    if (docs.isEmpty) {
+    if (all.isEmpty) {
       return const _EmptyDocs();
     }
-    return Column(
-      children: [
-        for (final doc in docs) ...[
-          _DocumentCard(
-            doc: doc,
-            onView: () => navigate(
-              context,
-              MakerDocDetailScreen(doc: doc),
-            ),
+    final docs = all.where((d) => matchesDocQuery(d, searchQuery)).toList();
+    if (docs.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 24),
+        child: Center(
+          child: Text(
+            'No documents match “$searchQuery”',
+            style: AppTextStyles.caption,
           ),
-          const SizedBox(height: 12),
-        ],
-      ],
+        ),
+      );
+    }
+    return PaginatedListView<DocumentModel>(
+      items: docs,
+      shrinkWrap: true,
+      resetKey: searchQuery,
+      separatorBuilder: (_, __) => const SizedBox(height: 12),
+      itemBuilder: (context, doc, index) => _DocumentCard(
+        doc: doc,
+        onView: () => showMakerDocDialog(context, doc: doc),
+      ),
     );
   }
 }
@@ -677,8 +714,7 @@ class _StatusFilterChip extends StatelessWidget {
             ),
             const SizedBox(width: 5),
             Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
               decoration: BoxDecoration(
                 color: selected
                     ? Colors.white.withValues(alpha: 0.25)
@@ -775,8 +811,7 @@ class _AutoDocListCard extends StatelessWidget {
             style: FilledButton.styleFrom(
               backgroundColor: ColorConstants.primaryColor,
               minimumSize: const Size(0, 36),
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 14, vertical: 0),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 0),
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
             ),
             icon: Icon(

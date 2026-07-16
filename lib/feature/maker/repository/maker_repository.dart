@@ -82,6 +82,7 @@ class MakerRepository {
     required TransactionType type,
     required Map<String, String> fields,
     required String isEdited,
+    String remark = '',
     required Function(DocumentModel) onSuccess,
     required Function(CustomException) onfailure,
   }) async {
@@ -110,6 +111,7 @@ class MakerRepository {
           'documentId': documentId,
           'transactionType': type.label,
           'isEdited': isEdited,
+          'remark': remark,
           'fields': fields,
         },
       );
@@ -133,6 +135,7 @@ class MakerRepository {
     required String documentId,
     required TransactionType type,
     required Map<String, String> fields,
+    String remark = '',
     required Function(DocumentModel) onSuccess,
     required Function(CustomException) onfailure,
   }) async {
@@ -155,10 +158,8 @@ class MakerRepository {
       'leiCode': fields['leiCode'] ?? '',
       'narration': fields['narration'] ?? '',
       'emailId': fields['emailId'] ?? '',
+      'remark': remark,
     };
-
-    // ignore: avoid_print
-    print('[AutoScan Submit] payload: $payload');
 
     if (useMock) {
       await Future<void>.delayed(const Duration(milliseconds: 600));
@@ -248,8 +249,7 @@ class MakerRepository {
     try {
       final response = await _client.request(
         requestType: RequestType.getWithToken,
-        url: ApiConstants.makerDocs,
-        queryParameters: {'type': isAutoScan ? 'auto' : 'manual'},
+        url: isAutoScan ? ApiConstants.getAuto : ApiConstants.getManual,
       );
       final code = response.statusCode ?? 0;
       if (code >= 200 && code < 300 && response.data != null) {
@@ -325,77 +325,60 @@ class MakerRepository {
   }
 
   static List<DocumentModel> _mockDocList(bool isAutoScan) {
+    // A larger dataset so search + pagination are demonstrable in mock mode.
+    const beneNames = [
+      'FISCHER MARINE AND OFFSHORE PRIVATE LIMITED',
+      'FISCHER OFFSHORE PRIVATE LIMITED',
+      'Acme Corp Ltd',
+      'John Doe',
+      'Tech Supplies Inc',
+      'Blue Ocean Traders',
+      'Sunrise Exports LLP',
+      'Meridian Logistics Pvt Ltd',
+    ];
+    const statuses = ['Pending', 'Approved', 'Rejected'];
+    const modes = ['RTGS', 'NEFT'];
+
     if (isAutoScan) {
-      // Mock matches the real API response structure
-      return [
-        DocumentModel.fromAutoScanJson({
-          'id': 1,
+      // Mock matches the real (flat) API response structure.
+      return List<DocumentModel>.generate(64, (i) {
+        final id = i + 1;
+        final mode = modes[i % modes.length];
+        return DocumentModel.fromAutoScanJson({
+          'id': id,
           'remitterAccountType': '',
-          'remitterAccountNumber': '57500001929680',
-          'receiptMode': 'RTGS',
+          'remitterAccountNumber': '5750000${1929680 + id}',
+          'receiptMode': mode,
           'chequeBasedTransaction': 'With Cheque',
-          'chequeNumber': '0505-to',
+          'chequeNumber': '0${500 + id}',
           'chequeDate': '2026-07-09T00:00:00',
-          'amount': 160965,
-          'amountInWords':
-              'One Lakh Sixty Thousand Nine Hundred Sixty-Five Only',
+          'amount': 100000 + id * 1375,
+          'amountInWords': 'Amount in words for doc $id',
           'sendingInformation': 'Default',
           'instructionPriority': 'Normal',
-          'beneficiaryIFSCCode': 'ICIC0000408',
-          'beneficiaryAccountNumber': '040805005064',
-          'beneficiaryName': 'FISCHER MARINE AND OFFSHORE PRIVATE LIMITED',
+          'beneficiaryIFSCCode': 'ICIC000${400 + id}',
+          'beneficiaryAccountNumber': '0408050${5000 + id}',
+          'beneficiaryName': beneNames[i % beneNames.length],
           'beneficiaryAccountTypeCode': 'Saving',
           'leiCode': '',
           'narration': 'FUND TRANSFER',
           'emailId': '',
-        }),
-        DocumentModel.fromAutoScanJson({
-          'id': 2,
-          'remitterAccountType': '',
-          'remitterAccountNumber': '57511101929510',
-          'receiptMode': 'NEFT',
-          'chequeBasedTransaction': 'With Cheque',
-          'chequeNumber': '000001',
-          'chequeDate': '2026-07-09T00:00:00',
-          'amount': 1060000,
-          'amountInWords': 'Ten Lakh Sixty Thousand Only',
-          'sendingInformation': 'Default',
-          'instructionPriority': 'Normal',
-          'beneficiaryIFSCCode': 'ICIC0000111',
-          'beneficiaryAccountNumber': '03280500514',
-          'beneficiaryName': 'FISCHER OFFSHORE PRIVATE LIMITED',
-          'beneficiaryAccountTypeCode': 'Saving',
-          'leiCode': '',
-          'narration': 'FUND TRANSFER',
-          'emailId': '',
-        }),
-      ];
+        }).copyWith(status: statuses[i % statuses.length]);
+      });
     }
 
     // Manual scan mock
-    return [
-      DocumentModel(
-        id: 'MAN001',
-        referenceNumber: 'DG-2026-MAN001',
-        transactionType: 'RTGS',
-        status: 'Approved',
-        submittedAt: '14 Jul 2026',
-      ),
-      DocumentModel(
-        id: 'MAN002',
-        referenceNumber: 'DG-2026-MAN002',
-        transactionType: 'NEFT',
-        status: 'Pending',
-        submittedAt: '15 Jul 2026',
-      ),
-      DocumentModel(
-        id: 'MAN003',
-        referenceNumber: 'DG-2026-MAN003',
-        transactionType: 'Fund Transfer',
-        status: 'Rejected',
-        submittedAt: '16 Jul 2026',
-      ),
-    ];
+    const types = ['RTGS', 'NEFT', 'Fund Transfer'];
+    return List<DocumentModel>.generate(48, (i) {
+      final n = (i + 1).toString().padLeft(3, '0');
+      return DocumentModel(
+        id: 'MAN$n',
+        referenceNumber: 'DG-2026-MAN$n',
+        transactionType: types[i % types.length],
+        status: statuses[i % statuses.length],
+        submittedAt: '${(i % 28) + 1} Jul 2026',
+      );
+    });
   }
 
   static String _today() {

@@ -3,14 +3,26 @@ import 'package:doc_genie/constants/color_const.dart';
 import 'package:doc_genie/constants/text_styles.dart';
 import 'package:doc_genie/feature/checker/controller/checker_controller.dart';
 import 'package:doc_genie/feature/checker/model/checker_models.dart';
-import 'package:doc_genie/feature/checker/screen/checker_detail_screen.dart';
-import 'package:doc_genie/utils/navigator_utils.dart';
+import 'package:doc_genie/feature/checker/widgets/checker_doc_dialog.dart';
 import 'package:doc_genie/utils/size_extension.dart';
 import 'package:doc_genie/widgets/app_card.dart';
 import 'package:doc_genie/widgets/app_loader.dart';
 import 'package:doc_genie/widgets/error_retry.dart';
+import 'package:doc_genie/widgets/paginated_list_view.dart';
+import 'package:doc_genie/widgets/search_field.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+/// Client-side search predicate for a [CheckerDocModel].
+bool matchesCheckerQuery(CheckerDocModel d, String query) {
+  if (query.isEmpty) return true;
+  final q = query.toLowerCase();
+  return d.id.toLowerCase().contains(q) ||
+      d.referenceNumber.toLowerCase().contains(q) ||
+      d.submittedBy.toLowerCase().contains(q) ||
+      d.transactionType.toLowerCase().contains(q) ||
+      d.status.toLowerCase().contains(q);
+}
 
 class CheckerScreen extends ConsumerStatefulWidget {
   const CheckerScreen({super.key});
@@ -21,7 +33,8 @@ class CheckerScreen extends ConsumerStatefulWidget {
 
 class _CheckerScreenState extends ConsumerState<CheckerScreen> {
   // null = All
-  String? _filter;
+  String? _filter = 'Pending';
+  String _searchQuery = '';
 
   @override
   Widget build(BuildContext context) {
@@ -40,16 +53,16 @@ class _CheckerScreenState extends ConsumerState<CheckerScreen> {
       );
     }
 
-    final allDocs =
-        (state as LoadedState<List<CheckerDocModel>>).response ??
+    final allDocs = (state as LoadedState<List<CheckerDocModel>>).response ??
         const <CheckerDocModel>[];
     final pending = allDocs.where((d) => d.status == 'Pending').length;
     final approved = allDocs.where((d) => d.status == 'Approved').length;
     final rejected = allDocs.where((d) => d.status == 'Rejected').length;
 
-    final filtered = _filter == null
-        ? allDocs
-        : allDocs.where((d) => d.status == _filter).toList();
+    final filtered = allDocs.where((d) {
+      final statusOk = _filter == null || d.status == _filter;
+      return statusOk && matchesCheckerQuery(d, _searchQuery);
+    }).toList();
 
     return SelectionArea(
       child: ListView(
@@ -92,28 +105,6 @@ class _CheckerScreenState extends ConsumerState<CheckerScreen> {
                     height: 1.5,
                   ),
                 ),
-                18.height,
-                // Wrap(
-                //   spacing: 10,
-                //   runSpacing: 10,
-                //   children: [
-                //     _QueueMetric(
-                //       label: 'Pending',
-                //       value: '$pending',
-                //       color: ColorConstants.warningColor,
-                //     ),
-                //     _QueueMetric(
-                //       label: 'Approved',
-                //       value: '$approved',
-                //       color: ColorConstants.successColor,
-                //     ),
-                //     _QueueMetric(
-                //       label: 'Rejected',
-                //       value: '$rejected',
-                //       color: ColorConstants.errorColor,
-                //     ),
-                //   ],
-                // ),
               ],
             ),
           ),
@@ -130,14 +121,14 @@ class _CheckerScreenState extends ConsumerState<CheckerScreen> {
           ),
           16.height,
 
+          // Search
+          SearchField(
+            hint: 'Search by reference, ID, submitter, type…',
+            onChanged: (q) => setState(() => _searchQuery = q),
+          ),
+          16.height,
+
           // Document list
-          for (final doc in filtered) ...[
-            _CheckerDocCard(
-              doc: doc,
-              onView: () => navigate(context, CheckerDetailScreen(doc: doc)),
-            ),
-            12.height,
-          ],
           if (filtered.isEmpty)
             AppCard(
               child: Column(
@@ -149,11 +140,24 @@ class _CheckerScreenState extends ConsumerState<CheckerScreen> {
                   ),
                   const SizedBox(height: 12),
                   Text(
-                    _filter == null
-                        ? 'No documents in queue'
-                        : 'No $_filter documents',
+                    _searchQuery.isNotEmpty
+                        ? 'No documents match “$_searchQuery”'
+                        : _filter == null
+                            ? 'No documents in queue'
+                            : 'No $_filter documents',
                   ),
                 ],
+              ),
+            )
+          else
+            PaginatedListView<CheckerDocModel>(
+              items: filtered,
+              shrinkWrap: true,
+              resetKey: '$_filter|$_searchQuery',
+              separatorBuilder: (_, __) => 12.height,
+              itemBuilder: (context, doc, index) => _CheckerDocCard(
+                doc: doc,
+                onView: () => showCheckerDocDialog(context, doc: doc),
               ),
             ),
         ],
@@ -278,47 +282,6 @@ class _FilterChip extends StatelessWidget {
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _QueueMetric extends StatelessWidget {
-  const _QueueMetric({
-    required this.label,
-    required this.value,
-    required this.color,
-  });
-
-  final String label;
-  final String value;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(18),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 10,
-            height: 10,
-            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-          ),
-          10.width,
-          Text(
-            '$label: $value',
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ],
       ),
     );
   }

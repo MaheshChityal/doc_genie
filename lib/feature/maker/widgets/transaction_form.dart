@@ -13,6 +13,7 @@ class TransactionForm extends StatefulWidget {
     required this.onSubmit,
     this.readOnly = false,
     this.isSubmitting = false,
+    this.belowFields,
   });
 
   final TransactionType type;
@@ -20,6 +21,10 @@ class TransactionForm extends StatefulWidget {
   final void Function(Map<String, String> fields, String isEdited) onSubmit;
   final bool readOnly;
   final bool isSubmitting;
+
+  /// Optional widget rendered between the field grid and the Submit button
+  /// (e.g. a remark entry). Shown whenever non-null, regardless of [readOnly].
+  final Widget? belowFields;
 
   @override
   State<TransactionForm> createState() => _TransactionFormState();
@@ -141,6 +146,10 @@ class _TransactionFormState extends State<TransactionForm> {
               );
             },
           ),
+          if (widget.belowFields != null) ...[
+            const SizedBox(height: 4),
+            widget.belowFields!,
+          ],
           if (!widget.readOnly) ...[
             const SizedBox(height: 8),
             AppButton(

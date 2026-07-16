@@ -4,52 +4,37 @@ import 'package:doc_genie/feature/checker/controller/checker_controller.dart';
 import 'package:doc_genie/feature/checker/model/checker_models.dart';
 import 'package:doc_genie/feature/maker/model/scan_models.dart';
 import 'package:doc_genie/feature/maker/widgets/transaction_form.dart';
-import 'package:doc_genie/utils/size_extension.dart';
 import 'package:doc_genie/utils/snackbar_utils.dart';
-import 'package:doc_genie/widgets/screen_header_bar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-class CheckerDetailScreen extends ConsumerStatefulWidget {
-  const CheckerDetailScreen({super.key, required this.doc});
+/// Opens a checker document as a pop-up dialog (mirrors the maker dialog).
+///
+/// The document fields scroll within the dialog while the Approve / Reject
+/// actions stay pinned at the bottom. Tapping an action opens the remark
+/// dialog and then submits the decision.
+Future<void> showCheckerDocDialog(
+  BuildContext context, {
+  required CheckerDocModel doc,
+}) {
+  return showDialog<void>(
+    context: context,
+    barrierDismissible: true,
+    builder: (_) => _CheckerDocDialog(doc: doc),
+  );
+}
+
+class _CheckerDocDialog extends ConsumerStatefulWidget {
+  const _CheckerDocDialog({required this.doc});
 
   final CheckerDocModel doc;
 
   @override
-  ConsumerState<CheckerDetailScreen> createState() =>
-      _CheckerDetailScreenState();
+  ConsumerState<_CheckerDocDialog> createState() => _CheckerDocDialogState();
 }
 
-class _CheckerDetailScreenState extends ConsumerState<CheckerDetailScreen> {
-  late CheckerDocModel _doc;
-
-  @override
-  void initState() {
-    super.initState();
-    _doc = widget.doc;
-  }
-
-  Future<void> _decide(String decision) async {
-    final error = await ref
-        .read(checkerControllerProvider.notifier)
-        .decide(_doc.id, decision);
-    if (!mounted) return;
-    if (error != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(error),
-          backgroundColor: ColorConstants.errorColor,
-        ),
-      );
-      return;
-    }
-    // Show snackbar via navigatorKey so it appears on the list screen after pop
-    SnackBarUtils.show(
-      '${_doc.referenceNumber} ${decision == 'Approved' ? 'approved' : 'rejected'} successfully',
-      type: decision == 'Approved' ? SnackType.success : SnackType.error,
-    );
-    Navigator.of(context).pop();
-  }
+class _CheckerDocDialogState extends ConsumerState<_CheckerDocDialog> {
+  CheckerDocModel get _doc => widget.doc;
 
   Future<void> _confirmDecision(String decision) async {
     final remarkController = TextEditingController();
@@ -103,53 +88,74 @@ class _CheckerDetailScreenState extends ConsumerState<CheckerDetailScreen> {
     }
   }
 
+  Future<void> _decide(String decision) async {
+    final error = await ref
+        .read(checkerControllerProvider.notifier)
+        .decide(_doc.id, decision);
+    if (!mounted) return;
+    if (error != null) {
+      SnackBarUtils.show(error, type: SnackType.error);
+      return;
+    }
+    // Close the detail dialog, then show feedback via the global navigator.
+    Navigator.of(context).pop();
+    SnackBarUtils.show(
+      '${_doc.referenceNumber} ${decision == 'Approved' ? 'approved' : 'rejected'} successfully',
+      type: decision == 'Approved' ? SnackType.success : SnackType.error,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final decided = _doc.status != 'Pending';
     final type = TransactionTypeX.fromString(_doc.transactionType);
+    final maxHeight = MediaQuery.of(context).size.height * 0.85;
 
-    return Scaffold(
-      appBar: ScreenHeaderBar(
-        title: _doc.referenceNumber,
-        subtitle: '${_doc.transactionType} · Submitted by ${_doc.submittedBy}',
-        icon: Icons.description_rounded,
-      ),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 820),
-          child: ListView(
-            padding: const EdgeInsets.all(20),
-            children: [
-              _StatusBanner(status: _doc.status),
-              24.height,
-              Text('Document Details', style: AppTextStyles.heading.copyWith(fontSize: 22)),
-              6.height,
-              Text(
-                'Submitted on ${_doc.date} by ${_doc.submittedBy}',
-                style: AppTextStyles.caption,
-              ),
-              20.height,
-              TransactionForm(
-                type: type,
-                initialValues: _doc.fields,
-                readOnly: true,
-                onSubmit: (fields, isEdited) {},
-              ),
-              if (!decided) ...[
-                24.height,
-                const Divider(),
-                20.height,
-                Text(
-                  'Take Action',
-                  style: AppTextStyles.title,
+    return Dialog(
+      insetPadding: const EdgeInsets.all(20),
+      backgroundColor: ColorConstants.surface,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: 640, maxHeight: maxHeight),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _DialogHeader(doc: _doc),
+            const Divider(height: 1),
+            // Scrollable content.
+            Flexible(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _StatusBanner(status: _doc.status),
+                    const SizedBox(height: 20),
+                    Text(
+                      'Document Details',
+                      style: AppTextStyles.subtitle,
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Submitted on ${_doc.date} by ${_doc.submittedBy}',
+                      style: AppTextStyles.caption,
+                    ),
+                    const SizedBox(height: 16),
+                    TransactionForm(
+                      type: type,
+                      initialValues: _doc.fields,
+                      readOnly: true,
+                      onSubmit: (fields, isEdited) {},
+                    ),
+                  ],
                 ),
-                8.height,
-                Text(
-                  'Review the fields above and approve or reject this document.',
-                  style: AppTextStyles.caption,
-                ),
-                16.height,
-                Row(
+              ),
+            ),
+            // Pinned action bar — stays put while the content above scrolls.
+            if (!decided) ...[
+              const Divider(height: 1),
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
                   children: [
                     Expanded(
                       child: OutlinedButton.icon(
@@ -159,19 +165,19 @@ class _CheckerDetailScreenState extends ConsumerState<CheckerDetailScreen> {
                           side: const BorderSide(
                             color: ColorConstants.errorColor,
                           ),
-                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
                         ),
                         icon: const Icon(Icons.close_rounded, size: 20),
                         label: const Text('Reject'),
                       ),
                     ),
-                    16.width,
+                    const SizedBox(width: 16),
                     Expanded(
                       child: FilledButton.icon(
                         onPressed: () => _confirmDecision('Approved'),
                         style: FilledButton.styleFrom(
                           backgroundColor: ColorConstants.successColor,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
                         ),
                         icon: const Icon(Icons.check_rounded, size: 20),
                         label: const Text('Approve'),
@@ -179,10 +185,61 @@ class _CheckerDetailScreenState extends ConsumerState<CheckerDetailScreen> {
                     ),
                   ],
                 ),
-              ],
+              ),
             ],
-          ),
+          ],
         ),
+      ),
+    );
+  }
+}
+
+class _DialogHeader extends StatelessWidget {
+  const _DialogHeader({required this.doc});
+
+  final CheckerDocModel doc;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 16, 8, 16),
+      child: Row(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              gradient: ColorConstants.heroGradient,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: const Icon(Icons.description_rounded, color: Colors.white),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  doc.referenceNumber,
+                  style: AppTextStyles.subtitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                Text(
+                  '${doc.transactionType} · Submitted by ${doc.submittedBy}',
+                  style: AppTextStyles.caption,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            onPressed: () => Navigator.of(context).pop(),
+            icon: const Icon(Icons.close_rounded),
+            tooltip: 'Close',
+          ),
+        ],
       ),
     );
   }

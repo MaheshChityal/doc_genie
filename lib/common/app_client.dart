@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:doc_genie/common/logging_interceptor.dart';
 import 'package:doc_genie/config/app_config.dart';
 import 'package:doc_genie/constants/api_constants.dart';
 import 'package:doc_genie/constants/enum_const.dart';
@@ -21,9 +22,7 @@ class AppClient {
     _refreshDio = Dio(baseOptions);
 
     if (kDebugMode) {
-      _dio.interceptors.add(
-        LogInterceptor(requestBody: true, responseBody: true, error: true),
-      );
+      _dio.interceptors.add(LoggingInterceptor());
     }
     _dio.interceptors.add(_authInterceptor());
   }

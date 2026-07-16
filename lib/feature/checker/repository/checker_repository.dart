@@ -60,6 +60,46 @@ class CheckerRepository {
   }
 
   static List<CheckerDocModel> _mockDocs() => [
+    ..._baseMockDocs,
+    // A larger dataset so search + pagination are demonstrable in mock mode.
+    ..._generatedMockDocs(),
+  ];
+
+  static List<CheckerDocModel> _generatedMockDocs() {
+    const statuses = ['Pending', 'Approved', 'Rejected'];
+    const types = ['RTGS', 'NEFT', 'Fund Transfer'];
+    const names = [
+      'Acme Corp Ltd',
+      'Blue Ocean Traders',
+      'Sunrise Exports LLP',
+      'Meridian Logistics Pvt Ltd',
+      'Tech Supplies Inc',
+    ];
+    return List<CheckerDocModel>.generate(60, (i) {
+      final n = (i + 5).toString().padLeft(3, '0');
+      final type = types[i % types.length];
+      return CheckerDocModel(
+        id: 'CHK$n',
+        referenceNumber: 'DG-2026-Q$n',
+        submittedBy: 'M00${(i % 5) + 1}',
+        transactionType: type,
+        status: statuses[i % statuses.length],
+        date: '${(i % 28) + 1} Jul 2026',
+        fields: {
+          'remitterAccountType': 'CASA',
+          'remitterAccountNumber': '112233${44000 + i}',
+          'receiptMode': type,
+          'amount': '${50000 + i * 2500}',
+          'beneIfscCode': 'HDFC000${1000 + i}',
+          'beneAccountNumber': '987654${30000 + i}',
+          'beneName': names[i % names.length],
+          'narration': 'Payment reference $n',
+        },
+      );
+    });
+  }
+
+  static final List<CheckerDocModel> _baseMockDocs = [
     CheckerDocModel(
       id: 'CHK001',
       referenceNumber: 'DG-2026-AUTO001',

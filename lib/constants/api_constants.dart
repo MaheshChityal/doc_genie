@@ -14,6 +14,11 @@ class ApiConstants {
   static const String makerDocs = '${AppConfig.baseUrl}maker/documents';
   static String makerDoc(String id) => '${AppConfig.baseUrl}maker/documents/$id';
 
+  // Separate list endpoints for auto vs manual maker documents.
+  // NOTE: path prefix assumed as `maker/…`; adjust if the backend differs.
+  static const String getAuto = '${AppConfig.baseUrl}maker/getAuto';
+  static const String getManual = '${AppConfig.baseUrl}maker/getManual';
+
   static const String checkerDocs = '${AppConfig.baseUrl}checker/documents';
   static String checkerDecide(String id) =>
       '${AppConfig.baseUrl}checker/documents/$id/decide';

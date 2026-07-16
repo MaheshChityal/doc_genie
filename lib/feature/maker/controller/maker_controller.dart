@@ -93,6 +93,7 @@ class SubmitController extends StateNotifier<GenericState> {
     required TransactionType type,
     required Map<String, String> fields,
     required String isEdited,
+    String remark = '',
     required Function(DocumentModel) onSuccess,
   }) async {
     state = const LoadingState();
@@ -106,6 +107,7 @@ class SubmitController extends StateNotifier<GenericState> {
         documentId: documentId,
         type: type,
         fields: fields,
+        remark: remark,
         onSuccess: onSuccess_,
         onfailure: (ex) => state = ErrorState(ex),
       );
@@ -115,6 +117,7 @@ class SubmitController extends StateNotifier<GenericState> {
         type: type,
         fields: fields,
         isEdited: isEdited,
+        remark: remark,
         onSuccess: onSuccess_,
         onfailure: (ex) => state = ErrorState(ex),
       );

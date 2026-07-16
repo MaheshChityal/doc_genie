@@ -26,9 +26,9 @@ class AuthRepository {
         'role': role,
         'user': {
           'id': '1',
-          'name': employeeCode,
+          'name': role == 'checker' ? 'Checker User' : 'Maker User',
           'email': '',
-          'employeeCode': employeeCode,
+          'employeeCode': employeeCode.toUpperCase(),
         },
       };
       onSuccess(LoginModel.fromJson(mockResponse));
