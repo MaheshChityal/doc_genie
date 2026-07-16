@@ -26,36 +26,44 @@ extension TransactionTypeX on TransactionType {
 
 /// Ordered field definitions for each transaction type.
 /// Each entry: (key, label, optional)
+/// Keys match the API field names exactly so pre-filling works automatically.
 const rtgsFields = <(String, String, bool)>[
   ('remitterAccountType', 'Remitter Account Type (CASA a/c/ GL)', false),
   ('remitterAccountNumber', 'Remitter Account Number', false),
-  ('receiptMode', 'Receipt Mode (Email/Original)', false),
+  ('receiptMode', 'Receipt Mode', false),
+  ('chequeBasedTransaction', 'Cheque Based Transaction (With/Without Cheque)', false),
   ('chequeNumber', 'Cheque Number', true),
   ('chequeDate', 'Cheque Date', true),
   ('amount', 'Amount', false),
-  ('sendingInfo', 'Sending Information (SMS/Email/Default)', false),
+  ('amountInWords', 'Amount in Words', false),
+  ('sendingInformation', 'Sending Information (SMS/Email/Default)', false),
   ('instructionPriority', 'Instruction Priority (High/Normal)', false),
-  ('beneIfscCode', 'Bene IFSC Code', false),
-  ('beneAccountNumber', 'Bene Account Number', false),
-  ('beneName', 'Bene Name', false),
+  ('beneficiaryIFSCCode', 'Bene IFSC Code', false),
+  ('beneficiaryAccountNumber', 'Bene Account Number', false),
+  ('beneficiaryName', 'Bene Name', false),
+  ('beneficiaryAccountTypeCode', 'Bene Account Type', false),
   ('leiCode', 'LEI Code (if Amount ≥ 50 Cr)', true),
   ('narration', 'Narration', false),
+  ('emailId', 'Email ID', false),
 ];
 
 const neftFields = <(String, String, bool)>[
   ('remitterAccountType', 'Remitter Account Type (CASA a/c/ GL)', false),
   ('remitterAccountNumber', 'Remitter Account Number', false),
-  ('receiptMode', 'Receipt Mode (Email/Original)', false),
+  ('receiptMode', 'Receipt Mode', false),
+  ('chequeBasedTransaction', 'Cheque Based Transaction (With/Without Cheque)', false),
   ('chequeNumber', 'Cheque Number', true),
   ('chequeDate', 'Cheque Date', true),
   ('amount', 'Amount', false),
-  ('sendingInfo', 'Sending Information (SMS/Email/Default)', false),
-  ('ifscCode', 'IFSC Code', false),
-  ('beneIfscCode', 'Bene IFSC Code', false),
-  ('beneAccountNumber', 'Bene Account Number', false),
-  ('beneName', 'Bene Name', false),
-  ('beneAccountTypeCode', 'Bene Account Type (Saving/OD/CC/Loan/NRE/FCRA)', false),
+  ('amountInWords', 'Amount in Words', false),
+  ('sendingInformation', 'Sending Information (SMS/Email/Default)', false),
+  ('beneficiaryIFSCCode', 'Bene IFSC Code', false),
+  ('beneficiaryAccountNumber', 'Bene Account Number', false),
+  ('beneficiaryName', 'Bene Name', false),
+  ('beneficiaryAccountTypeCode', 'Bene Account Type (Saving/OD/CC/Loan/NRE/FCRA)', false),
+  ('leiCode', 'LEI Code (if Amount ≥ 50 Cr)', true),
   ('narration', 'Narration', false),
+  ('emailId', 'Email ID', false),
 ];
 
 const fundTransferFields = <(String, String, bool)>[
@@ -138,6 +146,62 @@ class DocumentModel {
         : {},
   );
 
+  /// Parses the auto scan list API response — a flat object where all
+  /// document fields sit at the root level (no nested `fields` key).
+  factory DocumentModel.fromAutoScanJson(Map<String, dynamic> json) {
+    final receiptMode = (json['receiptMode'] ?? '').toString();
+
+    // Parse ISO chequeDate to a readable string
+    String chequeDate = '';
+    final raw = json['chequeDate'];
+    if (raw != null && raw.toString().isNotEmpty) {
+      try {
+        final dt = DateTime.parse(raw.toString());
+        const months = [
+          'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+          'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+        ];
+        chequeDate = '${dt.day} ${months[dt.month - 1]} ${dt.year}';
+      } catch (_) {
+        chequeDate = raw.toString();
+      }
+    }
+
+    final fields = <String, String>{
+      'remitterAccountType':
+          (json['remitterAccountType'] ?? '').toString(),
+      'remitterAccountNumber':
+          (json['remitterAccountNumber'] ?? '').toString(),
+      'receiptMode': receiptMode,
+      'chequeBasedTransaction':
+          (json['chequeBasedTransaction'] ?? '').toString(),
+      'chequeNumber': (json['chequeNumber'] ?? '').toString(),
+      'chequeDate': chequeDate,
+      'amount': (json['amount'] ?? '').toString(),
+      'amountInWords': (json['amountInWords'] ?? '').toString(),
+      'sendingInformation': (json['sendingInformation'] ?? '').toString(),
+      'instructionPriority': (json['instructionPriority'] ?? '').toString(),
+      'beneficiaryIFSCCode': (json['beneficiaryIFSCCode'] ?? '').toString(),
+      'beneficiaryAccountNumber':
+          (json['beneficiaryAccountNumber'] ?? '').toString(),
+      'beneficiaryName': (json['beneficiaryName'] ?? '').toString(),
+      'beneficiaryAccountTypeCode':
+          (json['beneficiaryAccountTypeCode'] ?? '').toString(),
+      'leiCode': (json['leiCode'] ?? '').toString(),
+      'narration': (json['narration'] ?? '').toString(),
+      'emailId': (json['emailId'] ?? '').toString(),
+    };
+
+    return DocumentModel(
+      id: (json['id'] ?? '').toString(),
+      referenceNumber: 'DG-${json['id']}',
+      transactionType: receiptMode,
+      status: 'Pending',
+      submittedAt: chequeDate.isNotEmpty ? chequeDate : _today(),
+      fields: fields,
+    );
+  }
+
   DocumentModel copyWith({String? status}) => DocumentModel(
     id: id,
     referenceNumber: referenceNumber,
@@ -146,4 +210,13 @@ class DocumentModel {
     submittedAt: submittedAt,
     fields: fields,
   );
+
+  static String _today() {
+    final now = DateTime.now();
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    ];
+    return '${now.day} ${months[now.month - 1]} ${now.year}';
+  }
 }

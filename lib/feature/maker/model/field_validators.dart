@@ -22,11 +22,11 @@ FormFieldValidator<String>? validatorFor(
       };
 
     // ── IFSC: 11-char, format XXXX0XXXXXX ─────────────────────────────────
-    case 'ifscCode':
-    case 'beneIfscCode':
+    case 'beneficiaryIFSCCode':
       return (v) {
         if (v == null || v.trim().isEmpty) return 'IFSC Code is required';
-        if (!RegExp(r'^[A-Z]{4}0[A-Z0-9]{6}$').hasMatch(v.trim().toUpperCase())) {
+        if (!RegExp(r'^[A-Z]{4}0[A-Z0-9]{6}$')
+            .hasMatch(v.trim().toUpperCase())) {
           return 'Invalid IFSC — must be 11 chars (e.g. HDFC0001234)';
         }
         return null;
@@ -37,15 +37,18 @@ FormFieldValidator<String>? validatorFor(
       return (v) {
         if (v == null || v.trim().isEmpty) return 'Amount is required';
         final amount = double.tryParse(v.trim().replaceAll(',', ''));
-        if (amount == null || amount <= 0) return 'Enter a valid positive amount';
+        if (amount == null || amount <= 0) {
+          return 'Enter a valid positive amount';
+        }
         return null;
       };
 
-    // ── LEI Code: required when amount ≥ ₹50 Cr (RTGS only) ───────────────
+    // ── LEI Code: required when amount ≥ ₹50 Cr ───────────────────────────
     case 'leiCode':
-      if (type != TransactionType.rtgs) return null;
+      if (type == TransactionType.fundTransfer) return null;
       return (v) {
-        final raw = controllers['amount']?.text.trim().replaceAll(',', '') ?? '';
+        final raw =
+            controllers['amount']?.text.trim().replaceAll(',', '') ?? '';
         final amount = double.tryParse(raw) ?? 0;
         if (amount >= 500000000 && (v == null || v.trim().isEmpty)) {
           return 'LEI Code is required when amount ≥ ₹50 Cr';
@@ -53,11 +56,8 @@ FormFieldValidator<String>? validatorFor(
         return null;
       };
 
-    // ── Cheque fields: required only when "With Cheque" (Fund Transfer) ────
+    // ── Cheque fields: required when chequeBasedTransaction = 'With Cheque' ─
     case 'chequeNumber':
-      if (type != TransactionType.fundTransfer) {
-        return optional ? null : _required('Cheque Number');
-      }
       return (v) {
         if (_isCheque(controllers) && (v == null || v.trim().isEmpty)) {
           return 'Cheque Number is required for cheque-based transactions';
@@ -66,9 +66,6 @@ FormFieldValidator<String>? validatorFor(
       };
 
     case 'chequeDate':
-      if (type != TransactionType.fundTransfer) {
-        return optional ? null : _required('Cheque Date');
-      }
       return (v) {
         if (_isCheque(controllers) && (v == null || v.trim().isEmpty)) {
           return 'Cheque Date is required for cheque-based transactions';

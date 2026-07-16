@@ -51,6 +51,58 @@ class _CheckerDetailScreenState extends ConsumerState<CheckerDetailScreen> {
     Navigator.of(context).pop();
   }
 
+  Future<void> _confirmDecision(String decision) async {
+    final remarkController = TextEditingController();
+    final isApprove = decision == 'Approved';
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: Text(isApprove ? 'Approve Document' : 'Reject Document'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Add a remark before ${isApprove ? 'approving' : 'rejecting'} this document.',
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: remarkController,
+              maxLines: 3,
+              autofocus: true,
+              decoration: const InputDecoration(
+                hintText: 'Enter your remark…',
+                border: OutlineInputBorder(),
+                contentPadding: EdgeInsets.all(12),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: FilledButton.styleFrom(
+              backgroundColor: isApprove
+                  ? ColorConstants.successColor
+                  : ColorConstants.errorColor,
+            ),
+            child: Text(isApprove ? 'Approve' : 'Reject'),
+          ),
+        ],
+      ),
+    );
+    remarkController.dispose();
+    if (confirmed == true && mounted) {
+      await _decide(decision);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final decided = _doc.status != 'Pending';
@@ -101,7 +153,7 @@ class _CheckerDetailScreenState extends ConsumerState<CheckerDetailScreen> {
                   children: [
                     Expanded(
                       child: OutlinedButton.icon(
-                        onPressed: () => _decide('Rejected'),
+                        onPressed: () => _confirmDecision('Rejected'),
                         style: OutlinedButton.styleFrom(
                           foregroundColor: ColorConstants.errorColor,
                           side: const BorderSide(
@@ -116,7 +168,7 @@ class _CheckerDetailScreenState extends ConsumerState<CheckerDetailScreen> {
                     16.width,
                     Expanded(
                       child: FilledButton.icon(
-                        onPressed: () => _decide('Approved'),
+                        onPressed: () => _confirmDecision('Approved'),
                         style: FilledButton.styleFrom(
                           backgroundColor: ColorConstants.successColor,
                           padding: const EdgeInsets.symmetric(vertical: 16),

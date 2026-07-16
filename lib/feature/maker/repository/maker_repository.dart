@@ -16,25 +16,23 @@ class MakerRepository {
     required PlatformFile file,
     required Function(ScanResultModel) onSuccess,
     required Function(CustomException) onfailure,
-  }) =>
-      _scan(
-        file: file,
-        url: ApiConstants.autoScan,
-        onSuccess: onSuccess,
-        onfailure: onfailure,
-      );
+  }) => _scan(
+    file: file,
+    url: ApiConstants.autoScan,
+    onSuccess: onSuccess,
+    onfailure: onfailure,
+  );
 
   Future<void> manualScan({
     required PlatformFile file,
     required Function(ScanResultModel) onSuccess,
     required Function(CustomException) onfailure,
-  }) =>
-      _scan(
-        file: file,
-        url: ApiConstants.manualScan,
-        onSuccess: onSuccess,
-        onfailure: onfailure,
-      );
+  }) => _scan(
+    file: file,
+    url: ApiConstants.manualScan,
+    onSuccess: onSuccess,
+    onfailure: onfailure,
+  );
 
   Future<void> _scan({
     required PlatformFile file,
@@ -89,7 +87,8 @@ class MakerRepository {
   }) async {
     if (useMock) {
       await Future<void>.delayed(const Duration(milliseconds: 600));
-      final refNo = 'DG-${DateTime.now().year}-${Random().nextInt(9000) + 1000}';
+      final refNo =
+          'DG-${DateTime.now().year}-${Random().nextInt(9000) + 1000}';
       onSuccess(
         DocumentModel(
           id: documentId,
@@ -150,7 +149,11 @@ class MakerRepository {
       if (code >= 200 && code < 300 && response.data != null) {
         final list = (response.data as List? ?? [])
             .whereType<Map>()
-            .map((e) => DocumentModel.fromJson(Map<String, dynamic>.from(e)))
+            .map(
+              (e) => isAutoScan
+                  ? DocumentModel.fromAutoScanJson(Map<String, dynamic>.from(e))
+                  : DocumentModel.fromJson(Map<String, dynamic>.from(e)),
+            )
             .toList();
         onSuccess(list);
       } else {
@@ -166,34 +169,41 @@ class MakerRepository {
       case TransactionType.rtgs:
         return {
           'remitterAccountType': 'CASA',
-          'remitterAccountNumber': '12345678901',
-          'receiptMode': 'Email',
-          'chequeNumber': '',
-          'chequeDate': '',
+          'remitterAccountNumber': '57500001929680',
+          'receiptMode': 'RTGS',
+          'chequeBasedTransaction': 'With Cheque',
+          'chequeNumber': '0505',
+          'chequeDate': '9 Jul 2026',
           'amount': '250000',
-          'sendingInfo': 'SMS',
-          'instructionPriority': 'High',
-          'beneIfscCode': 'HDFC0001234',
-          'beneAccountNumber': '98765432101',
-          'beneName': 'Acme Corp Ltd',
+          'amountInWords': 'Two Lakh Fifty Thousand Only',
+          'sendingInformation': 'Default',
+          'instructionPriority': 'Normal',
+          'beneficiaryIFSCCode': 'ICIC0000408',
+          'beneficiaryAccountNumber': '040805005064',
+          'beneficiaryName': 'Acme Corp Ltd',
+          'beneficiaryAccountTypeCode': 'Saving',
           'leiCode': '',
           'narration': 'Vendor payment Q3',
+          'emailId': '',
         };
       case TransactionType.neft:
         return {
           'remitterAccountType': 'CASA',
-          'remitterAccountNumber': '11223344556',
-          'receiptMode': 'Original',
-          'chequeNumber': '',
-          'chequeDate': '',
+          'remitterAccountNumber': '57511101929510',
+          'receiptMode': 'NEFT',
+          'chequeBasedTransaction': 'With Cheque',
+          'chequeNumber': '000001',
+          'chequeDate': '9 Jul 2026',
           'amount': '75000',
-          'sendingInfo': 'Email',
-          'ifscCode': 'SBIN0012345',
-          'beneIfscCode': 'SBIN0012345',
-          'beneAccountNumber': '55667788990',
-          'beneName': 'John Doe',
-          'beneAccountTypeCode': 'Saving',
+          'amountInWords': 'Seventy Five Thousand Only',
+          'sendingInformation': 'Default',
+          'beneficiaryIFSCCode': 'ICIC0000111',
+          'beneficiaryAccountNumber': '55667788990',
+          'beneficiaryName': 'John Doe',
+          'beneficiaryAccountTypeCode': 'Saving',
+          'leiCode': '',
           'narration': 'Salary July 2026',
+          'emailId': '',
         };
       case TransactionType.fundTransfer:
         return {
@@ -209,25 +219,72 @@ class MakerRepository {
   }
 
   static List<DocumentModel> _mockDocList(bool isAutoScan) {
-    final prefix = isAutoScan ? 'AUTO' : 'MAN';
+    if (isAutoScan) {
+      // Mock matches the real API response structure
+      return [
+        DocumentModel.fromAutoScanJson({
+          'id': 1,
+          'remitterAccountType': '',
+          'remitterAccountNumber': '57500001929680',
+          'receiptMode': 'RTGS',
+          'chequeBasedTransaction': 'With Cheque',
+          'chequeNumber': '0505-to',
+          'chequeDate': '2026-07-09T00:00:00',
+          'amount': 160965,
+          'amountInWords':
+              'One Lakh Sixty Thousand Nine Hundred Sixty-Five Only',
+          'sendingInformation': 'Default',
+          'instructionPriority': 'Normal',
+          'beneficiaryIFSCCode': 'ICIC0000408',
+          'beneficiaryAccountNumber': '040805005064',
+          'beneficiaryName': 'FISCHER MARINE AND OFFSHORE PRIVATE LIMITED',
+          'beneficiaryAccountTypeCode': 'Saving',
+          'leiCode': '',
+          'narration': 'FUND TRANSFER',
+          'emailId': '',
+        }),
+        DocumentModel.fromAutoScanJson({
+          'id': 2,
+          'remitterAccountType': '',
+          'remitterAccountNumber': '57511101929510',
+          'receiptMode': 'NEFT',
+          'chequeBasedTransaction': 'With Cheque',
+          'chequeNumber': '000001',
+          'chequeDate': '2026-07-09T00:00:00',
+          'amount': 1060000,
+          'amountInWords': 'Ten Lakh Sixty Thousand Only',
+          'sendingInformation': 'Default',
+          'instructionPriority': 'Normal',
+          'beneficiaryIFSCCode': 'ICIC0000111',
+          'beneficiaryAccountNumber': '03280500514',
+          'beneficiaryName': 'FISCHER OFFSHORE PRIVATE LIMITED',
+          'beneficiaryAccountTypeCode': 'Saving',
+          'leiCode': '',
+          'narration': 'FUND TRANSFER',
+          'emailId': '',
+        }),
+      ];
+    }
+
+    // Manual scan mock
     return [
       DocumentModel(
-        id: '${prefix}001',
-        referenceNumber: 'DG-2026-${prefix}001',
+        id: 'MAN001',
+        referenceNumber: 'DG-2026-MAN001',
         transactionType: 'RTGS',
         status: 'Approved',
         submittedAt: '14 Jul 2026',
       ),
       DocumentModel(
-        id: '${prefix}002',
-        referenceNumber: 'DG-2026-${prefix}002',
+        id: 'MAN002',
+        referenceNumber: 'DG-2026-MAN002',
         transactionType: 'NEFT',
         status: 'Pending',
         submittedAt: '15 Jul 2026',
       ),
       DocumentModel(
-        id: '${prefix}003',
-        referenceNumber: 'DG-2026-${prefix}003',
+        id: 'MAN003',
+        referenceNumber: 'DG-2026-MAN003',
         transactionType: 'Fund Transfer',
         status: 'Rejected',
         submittedAt: '16 Jul 2026',
@@ -238,8 +295,18 @@ class MakerRepository {
   static String _today() {
     final now = DateTime.now();
     const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
     return '${now.day} ${months[now.month - 1]} ${now.year}';
   }

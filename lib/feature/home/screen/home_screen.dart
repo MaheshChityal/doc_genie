@@ -39,22 +39,22 @@ class HomeScreen extends ConsumerWidget {
         children: [
           _HeroCard(stats: data.stats),
           const SizedBox(height: 20),
-          _SectionHeader(
-            eyebrow: 'Activity',
-            title: 'Recent Documents',
-            subtitle: 'Latest submissions and their current status.',
-          ),
-          const SizedBox(height: 14),
-          for (final activity in data.recentActivity) ...[
-            _ActivityCard(activity: activity),
-            const SizedBox(height: 12),
-          ],
-          if (data.recentActivity.isEmpty)
-            const _EmptyPane(
-              icon: Icons.inbox_rounded,
-              title: 'No recent activity',
-              subtitle: 'Documents you submit will appear here.',
-            ),
+          // _SectionHeader(
+          //   eyebrow: 'Activity',
+          //   title: 'Recent Documents',
+          //   subtitle: 'Latest submissions and their current status.',
+          // ),
+          // const SizedBox(height: 14),
+          // for (final activity in data.recentActivity) ...[
+          //   _ActivityCard(activity: activity),
+          //   const SizedBox(height: 12),
+          // ],
+          // if (data.recentActivity.isEmpty)
+          //   const _EmptyPane(
+          //     icon: Icons.inbox_rounded,
+          //     title: 'No recent activity',
+          //     subtitle: 'Documents you submit will appear here.',
+          //   ),
         ],
       ),
     );

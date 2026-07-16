@@ -1,20 +1,30 @@
-import 'package:doc_genie/constants/color_const.dart';
+import 'package:doc_genie/common/generic_state.dart';
 import 'package:doc_genie/constants/text_styles.dart';
+import 'package:doc_genie/feature/maker/controller/maker_controller.dart';
 import 'package:doc_genie/feature/maker/model/scan_models.dart';
 import 'package:doc_genie/feature/maker/widgets/transaction_form.dart';
 import 'package:doc_genie/utils/size_extension.dart';
 import 'package:doc_genie/widgets/screen_header_bar.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-class MakerDocDetailScreen extends StatelessWidget {
-  const MakerDocDetailScreen({super.key, required this.doc});
+class MakerDocDetailScreen extends ConsumerWidget {
+  const MakerDocDetailScreen({
+    super.key,
+    required this.doc,
+    this.isEditable = false,
+    this.onSubmitSuccess,
+  });
 
   final DocumentModel doc;
+  final bool isEditable;
+  final VoidCallback? onSubmitSuccess;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isSubmitting =
+        isEditable && ref.watch(autoSubmitControllerProvider) is LoadingState;
     final type = TransactionTypeX.fromString(doc.transactionType);
-    final statusColor = _statusColor(doc.status);
 
     return Scaffold(
       appBar: ScreenHeaderBar(
@@ -28,26 +38,6 @@ class MakerDocDetailScreen extends StatelessWidget {
           child: ListView(
             padding: const EdgeInsets.all(20),
             children: [
-              // Status banner
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: statusColor.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: statusColor.withValues(alpha: 0.22)),
-                ),
-                child: Row(
-                  children: [
-                    Icon(_statusIcon(doc.status), color: statusColor, size: 24),
-                    const SizedBox(width: 12),
-                    Text(
-                      doc.status == 'Pending' ? 'Awaiting Checker Review' : doc.status,
-                      style: AppTextStyles.subtitle.copyWith(color: statusColor),
-                    ),
-                  ],
-                ),
-              ),
-              24.height,
               Text(
                 'Document Details',
                 style: AppTextStyles.heading.copyWith(fontSize: 22),
@@ -61,8 +51,22 @@ class MakerDocDetailScreen extends StatelessWidget {
               TransactionForm(
                 type: type,
                 initialValues: doc.fields,
-                readOnly: true,
-                onSubmit: (fields, isEdited) {},
+                readOnly: !isEditable,
+                isSubmitting: isSubmitting,
+                onSubmit: (fields, isEdited) {
+                  if (!isEditable) return;
+                  ref.read(autoSubmitControllerProvider.notifier).submit(
+                    documentId: doc.id,
+                    type: type,
+                    fields: fields,
+                    isEdited: isEdited,
+                    onSuccess: (newDoc) {
+                      onSubmitSuccess?.call();
+                      ref.read(autoSubmitControllerProvider.notifier).reset();
+                      _showSuccess(context, newDoc.referenceNumber);
+                    },
+                  );
+                },
               ),
             ],
           ),
@@ -71,25 +75,27 @@ class MakerDocDetailScreen extends StatelessWidget {
     );
   }
 
-  static Color _statusColor(String s) {
-    switch (s) {
-      case 'Approved':
-        return ColorConstants.successColor;
-      case 'Rejected':
-        return ColorConstants.errorColor;
-      default:
-        return ColorConstants.warningColor;
-    }
+  void _showSuccess(BuildContext context, String refNo) {
+    if (!context.mounted) return;
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Document Submitted'),
+        content: Text(
+          'Reference number: $refNo\n\nYour document has been submitted for checker review.',
+        ),
+        actions: [
+          FilledButton(
+            onPressed: () {
+              Navigator.of(context)
+                ..pop()
+                ..pop();
+            },
+            child: const Text('Done'),
+          ),
+        ],
+      ),
+    );
   }
 
-  static IconData _statusIcon(String s) {
-    switch (s) {
-      case 'Approved':
-        return Icons.check_circle_rounded;
-      case 'Rejected':
-        return Icons.cancel_rounded;
-      default:
-        return Icons.schedule_rounded;
-    }
-  }
 }

@@ -148,4 +148,13 @@ class DocsController extends StateNotifier<GenericState> {
         : <DocumentModel>[];
     state = LoadedState<List<DocumentModel>>(response: [doc, ...current]);
   }
+
+  void removeDoc(String id) {
+    if (state is! LoadedState<List<DocumentModel>>) return;
+    final current =
+        (state as LoadedState<List<DocumentModel>>).response ?? [];
+    state = LoadedState<List<DocumentModel>>(
+      response: current.where((d) => d.id != id).toList(),
+    );
+  }
 }

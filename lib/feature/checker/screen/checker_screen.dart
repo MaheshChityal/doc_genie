@@ -93,27 +93,27 @@ class _CheckerScreenState extends ConsumerState<CheckerScreen> {
                   ),
                 ),
                 18.height,
-                Wrap(
-                  spacing: 10,
-                  runSpacing: 10,
-                  children: [
-                    _QueueMetric(
-                      label: 'Pending',
-                      value: '$pending',
-                      color: ColorConstants.warningColor,
-                    ),
-                    _QueueMetric(
-                      label: 'Approved',
-                      value: '$approved',
-                      color: ColorConstants.successColor,
-                    ),
-                    _QueueMetric(
-                      label: 'Rejected',
-                      value: '$rejected',
-                      color: ColorConstants.errorColor,
-                    ),
-                  ],
-                ),
+                // Wrap(
+                //   spacing: 10,
+                //   runSpacing: 10,
+                //   children: [
+                //     _QueueMetric(
+                //       label: 'Pending',
+                //       value: '$pending',
+                //       color: ColorConstants.warningColor,
+                //     ),
+                //     _QueueMetric(
+                //       label: 'Approved',
+                //       value: '$approved',
+                //       color: ColorConstants.successColor,
+                //     ),
+                //     _QueueMetric(
+                //       label: 'Rejected',
+                //       value: '$rejected',
+                //       color: ColorConstants.errorColor,
+                //     ),
+                //   ],
+                // ),
               ],
             ),
           ),
@@ -336,7 +336,7 @@ class _CheckerDocCard extends StatelessWidget {
     final typeColor = _typeColor(doc.transactionType);
 
     return AppCard(
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(13),
       backgroundColor: ColorConstants.surface,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -351,7 +351,7 @@ class _CheckerDocCard extends StatelessWidget {
               ),
               const Spacer(),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                 decoration: BoxDecoration(
                   color: typeColor.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(6),
@@ -360,21 +360,21 @@ class _CheckerDocCard extends StatelessWidget {
                   doc.transactionType,
                   style: TextStyle(
                     color: typeColor,
-                    fontSize: 11,
+                    fontSize: 10.5,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
               ),
             ],
           ),
-          8.height,
-          Text(doc.referenceNumber, style: AppTextStyles.title),
-          6.height,
+          5.height,
+          Text(doc.referenceNumber, style: AppTextStyles.subtitle),
+          3.height,
           Text(
             'Submitted by ${doc.submittedBy} · ${doc.date}',
             style: AppTextStyles.caption,
           ),
-          14.height,
+          10.height,
           Row(
             children: [
               _StatusBadge(status: doc.status, color: statusColor),
@@ -383,15 +383,15 @@ class _CheckerDocCard extends StatelessWidget {
                 onPressed: onView,
                 style: FilledButton.styleFrom(
                   backgroundColor: ColorConstants.primaryColor,
-                  minimumSize: const Size(0, 38),
+                  minimumSize: const Size(0, 32),
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
+                    horizontal: 12,
                     vertical: 0,
                   ),
                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
-                icon: const Icon(Icons.open_in_new_rounded, size: 16),
-                label: const Text('View', style: TextStyle(fontSize: 13)),
+                icon: const Icon(Icons.open_in_new_rounded, size: 15),
+                label: const Text('View', style: TextStyle(fontSize: 12)),
               ),
             ],
           ),
@@ -432,7 +432,7 @@ class _StatusBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(999),
@@ -441,16 +441,17 @@ class _StatusBadge extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            width: 8,
-            height: 8,
+            width: 7,
+            height: 7,
             decoration: BoxDecoration(color: color, shape: BoxShape.circle),
           ),
-          8.width,
+          6.width,
           Text(
             status,
             style: AppTextStyles.caption.copyWith(
               color: color,
               fontWeight: FontWeight.w800,
+              fontSize: 11.5,
             ),
           ),
         ],
