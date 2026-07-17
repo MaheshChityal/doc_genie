@@ -4,12 +4,9 @@ import 'package:doc_genie/constants/text_styles.dart';
 import 'package:doc_genie/feature/checker/controller/checker_controller.dart';
 import 'package:doc_genie/feature/checker/model/checker_models.dart';
 import 'package:doc_genie/feature/checker/widgets/checker_doc_dialog.dart';
-import 'package:doc_genie/utils/size_extension.dart';
-import 'package:doc_genie/widgets/app_card.dart';
 import 'package:doc_genie/widgets/app_loader.dart';
 import 'package:doc_genie/widgets/error_retry.dart';
-import 'package:doc_genie/widgets/paginated_list_view.dart';
-import 'package:doc_genie/widgets/search_field.dart';
+import 'package:doc_genie/widgets/paginated_table.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -34,7 +31,6 @@ class CheckerScreen extends ConsumerStatefulWidget {
 class _CheckerScreenState extends ConsumerState<CheckerScreen> {
   // null = All
   String? _filter = 'Pending';
-  String _searchQuery = '';
 
   @override
   Widget build(BuildContext context) {
@@ -59,109 +55,126 @@ class _CheckerScreenState extends ConsumerState<CheckerScreen> {
     final approved = allDocs.where((d) => d.status == 'Approved').length;
     final rejected = allDocs.where((d) => d.status == 'Rejected').length;
 
-    final filtered = allDocs.where((d) {
-      final statusOk = _filter == null || d.status == _filter;
-      return statusOk && matchesCheckerQuery(d, _searchQuery);
-    }).toList();
+    final filtered = _filter == null
+        ? allDocs
+        : allDocs.where((d) => d.status == _filter).toList();
 
-    return SelectionArea(
-      child: ListView(
-        padding: const EdgeInsets.all(24),
-        children: [
-          // Hero card
-          AppCard(
-            padding: const EdgeInsets.all(24),
-            gradient: ColorConstants.heroGradient,
-            borderColor: Colors.transparent,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'CHECKER QUEUE',
-                  style: TextStyle(
-                    color: Colors.white70,
-                    fontSize: 11.5,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 1.2,
-                  ),
-                ),
-                8.height,
-                const Text(
-                  'Review & Authorise Documents',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 28,
-                    fontWeight: FontWeight.w800,
-                    height: 1.05,
-                    letterSpacing: -0.7,
-                  ),
-                ),
-                10.height,
-                Text(
-                  '$pending document${pending == 1 ? '' : 's'} awaiting your review and authorisation.',
-                  style: const TextStyle(
-                    color: Color(0xD9FFFFFF),
-                    fontSize: 14,
-                    height: 1.5,
-                  ),
-                ),
-              ],
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // AppCard(
+              //   padding: const EdgeInsets.all(18),
+              //   gradient: ColorConstants.heroGradient,
+              //   borderColor: Colors.transparent,
+              //   child: Column(
+              //     crossAxisAlignment: CrossAxisAlignment.start,
+              //     children: [
+              //       const Text(
+              //         'CHECKER QUEUE',
+              //         style: TextStyle(
+              //           color: Colors.white70,
+              //           fontSize: 11,
+              //           fontWeight: FontWeight.w800,
+              //           letterSpacing: 1.1,
+              //         ),
+              //       ),
+              //       6.height,
+              //       const Text(
+              //         'Review & Authorise Documents',
+              //         style: TextStyle(
+              //           color: Colors.white,
+              //           fontSize: 22,
+              //           fontWeight: FontWeight.w800,
+              //           height: 1.05,
+              //           letterSpacing: -0.6,
+              //         ),
+              //       ),
+              //       6.height,
+              //       Text(
+              //         '$pending document${pending == 1 ? '' : 's'} awaiting your review and authorisation.',
+              //         style: const TextStyle(
+              //           color: Color(0xD9FFFFFF),
+              //           fontSize: 13,
+              //           height: 1.4,
+              //         ),
+              //       ),
+              //     ],
+              //   ),
+              // ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: PaginatedTable<CheckerDocModel>(
+            key: ValueKey(_filter),
+            items: filtered,
+            searchHint: 'Search by id, file, maker, type…',
+            searchPredicate: matchesCheckerQuery,
+            filters: _FilterBar(
+              selected: _filter,
+              onSelect: (value) => setState(() => _filter = value),
+              pending: pending,
+              approved: approved,
+              rejected: rejected,
+              total: allDocs.length,
             ),
-          ),
-          20.height,
-
-          // Filter chips
-          _FilterBar(
-            selected: _filter,
-            onSelect: (value) => setState(() => _filter = value),
-            pending: pending,
-            approved: approved,
-            rejected: rejected,
-            total: allDocs.length,
-          ),
-          16.height,
-
-          // Search
-          SearchField(
-            hint: 'Search by reference, ID, submitter, type…',
-            onChanged: (q) => setState(() => _searchQuery = q),
-          ),
-          16.height,
-
-          // Document list
-          if (filtered.isEmpty)
-            AppCard(
-              child: Column(
-                children: [
-                  const Icon(
-                    Icons.inbox_rounded,
-                    size: 40,
-                    color: ColorConstants.textMuted,
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    _searchQuery.isNotEmpty
-                        ? 'No documents match “$_searchQuery”'
-                        : _filter == null
-                            ? 'No documents in queue'
-                            : 'No $_filter documents',
-                  ),
-                ],
+            columns: [
+              TableColumn(
+                label: 'Id',
+                flex: 2,
+                cell: (_, d) => Text(
+                  d.id,
+                  style: AppTextStyles.caption
+                      .copyWith(fontWeight: FontWeight.w700),
+                ),
               ),
-            )
-          else
-            PaginatedListView<CheckerDocModel>(
-              items: filtered,
-              shrinkWrap: true,
-              resetKey: '$_filter|$_searchQuery',
-              separatorBuilder: (_, __) => 12.height,
-              itemBuilder: (context, doc, index) => _CheckerDocCard(
-                doc: doc,
-                onView: () => showCheckerDocDialog(context, doc: doc),
+              TableColumn(
+                label: 'FileName',
+                flex: 4,
+                cell: (_, d) => Text(
+                  d.fileName.isEmpty ? '—' : d.fileName,
+                  style: AppTextStyles.caption,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
-            ),
-        ],
-      ),
+              TableColumn(
+                label: 'Maker By',
+                flex: 3,
+                cell: (_, d) => Text(
+                  d.submittedBy.isEmpty ? '—' : d.submittedBy,
+                  style: AppTextStyles.caption,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              TableColumn(
+                label: 'Action',
+                flex: 3,
+                cell: (context, d) => Align(
+                  alignment: Alignment.centerLeft,
+                  child: FilledButton.icon(
+                    onPressed: () => showCheckerDocDialog(context, doc: d),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: ColorConstants.primaryColor,
+                      minimumSize: const Size(0, 32),
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    icon: const Icon(Icons.open_in_new_rounded, size: 14),
+                    label: const Text('View', style: TextStyle(fontSize: 12)),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
@@ -282,142 +295,6 @@ class _FilterChip extends StatelessWidget {
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _CheckerDocCard extends StatelessWidget {
-  const _CheckerDocCard({required this.doc, required this.onView});
-
-  final CheckerDocModel doc;
-  final VoidCallback onView;
-
-  @override
-  Widget build(BuildContext context) {
-    final statusColor = _statusColor(doc.status);
-    final typeColor = _typeColor(doc.transactionType);
-
-    return AppCard(
-      padding: const EdgeInsets.all(13),
-      backgroundColor: ColorConstants.surface,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Text(
-                doc.id,
-                style: AppTextStyles.caption.copyWith(
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const Spacer(),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                decoration: BoxDecoration(
-                  color: typeColor.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Text(
-                  doc.transactionType,
-                  style: TextStyle(
-                    color: typeColor,
-                    fontSize: 10.5,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          5.height,
-          Text(doc.referenceNumber, style: AppTextStyles.subtitle),
-          3.height,
-          Text(
-            'Submitted by ${doc.submittedBy} · ${doc.date}',
-            style: AppTextStyles.caption,
-          ),
-          10.height,
-          Row(
-            children: [
-              _StatusBadge(status: doc.status, color: statusColor),
-              const Spacer(),
-              FilledButton.icon(
-                onPressed: onView,
-                style: FilledButton.styleFrom(
-                  backgroundColor: ColorConstants.primaryColor,
-                  minimumSize: const Size(0, 32),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 0,
-                  ),
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
-                icon: const Icon(Icons.open_in_new_rounded, size: 15),
-                label: const Text('View', style: TextStyle(fontSize: 12)),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  static Color _statusColor(String status) {
-    switch (status) {
-      case 'Approved':
-        return ColorConstants.successColor;
-      case 'Rejected':
-        return ColorConstants.errorColor;
-      default:
-        return ColorConstants.warningColor;
-    }
-  }
-
-  static Color _typeColor(String type) {
-    switch (type) {
-      case 'RTGS':
-        return ColorConstants.infoColor;
-      case 'NEFT':
-        return ColorConstants.secondaryColor;
-      default:
-        return ColorConstants.accentColor;
-    }
-  }
-}
-
-class _StatusBadge extends StatelessWidget {
-  const _StatusBadge({required this.status, required this.color});
-
-  final String status;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 7,
-            height: 7,
-            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-          ),
-          6.width,
-          Text(
-            status,
-            style: AppTextStyles.caption.copyWith(
-              color: color,
-              fontWeight: FontWeight.w800,
-              fontSize: 11.5,
-            ),
-          ),
-        ],
       ),
     );
   }

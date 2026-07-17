@@ -20,20 +20,36 @@ class MakerScreen extends StatelessWidget {
               ),
             ),
             child: TabBar(
-              labelStyle: AppTextStyles.subtitle.copyWith(fontSize: 14),
+              labelStyle: AppTextStyles.body.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
               unselectedLabelStyle: AppTextStyles.body,
               labelColor: ColorConstants.primaryColor,
               unselectedLabelColor: ColorConstants.textSecondary,
               indicatorColor: ColorConstants.primaryColor,
-              indicatorWeight: 2.5,
+              indicatorWeight: 2,
               tabs: const [
                 Tab(
-                  icon: Icon(Icons.document_scanner_rounded, size: 20),
-                  text: 'Auto Scan',
+                  height: 42,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.document_scanner_rounded, size: 17),
+                      SizedBox(width: 7),
+                      Text('Auto Scan'),
+                    ],
+                  ),
                 ),
                 Tab(
-                  icon: Icon(Icons.edit_document, size: 20),
-                  text: 'Manual Scan',
+                  height: 42,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.edit_document, size: 17),
+                      SizedBox(width: 7),
+                      Text('Manual Scan'),
+                    ],
+                  ),
                 ),
               ],
             ),

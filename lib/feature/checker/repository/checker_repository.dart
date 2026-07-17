@@ -85,6 +85,7 @@ class CheckerRepository {
         transactionType: type,
         status: statuses[i % statuses.length],
         date: '${(i % 28) + 1} Jul 2026',
+        fileName: 'doc_$n.pdf',
         fields: {
           'remitterAccountType': 'CASA',
           'remitterAccountNumber': '112233${44000 + i}',

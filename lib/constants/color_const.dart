@@ -18,6 +18,10 @@ class ColorConstants {
   static const Color surfaceMuted = Color(0xFFE3D7C7);
   static const Color surfaceDark = Color(0xFF19324B);
 
+  // Neutral greys for disabled / read-only fields.
+  static const Color disabledFill = Color(0xFFF2F2F1);
+  static const Color disabledBorder = Color(0xFFDCDCDA);
+
   static const Color textPrimary = Color(0xFF1C2730);
   static const Color textSecondary = Color(0xFF5D6A73);
   static const Color textMuted = Color(0xFF93A0A8);

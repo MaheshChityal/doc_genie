@@ -1,21 +1,21 @@
 import 'package:doc_genie/common/generic_state.dart';
 import 'package:doc_genie/constants/color_const.dart';
 import 'package:doc_genie/constants/text_styles.dart';
-import 'package:doc_genie/feature/maker/controller/maker_controller.dart';
-import 'package:doc_genie/feature/maker/model/scan_models.dart';
+import 'package:doc_genie/feature/maker/controller/auto_controller.dart';
+import 'package:doc_genie/feature/maker/controller/manual_controller.dart';
+import 'package:doc_genie/feature/maker/model/auto_doc_model.dart';
 import 'package:doc_genie/feature/maker/widgets/maker_doc_dialog.dart';
 import 'package:doc_genie/feature/maker/widgets/transaction_form.dart';
 import 'package:doc_genie/utils/snackbar_utils.dart';
 import 'package:doc_genie/widgets/app_card.dart';
 import 'package:doc_genie/widgets/app_loader.dart';
-import 'package:doc_genie/widgets/paginated_list_view.dart';
-import 'package:doc_genie/widgets/search_field.dart';
+import 'package:doc_genie/widgets/paginated_table.dart';
+import 'package:doc_genie/widgets/success_dialog.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// Shared tab body used for both Auto Scan and Manual Scan.
-/// [isAuto] drives which providers it reads.
+/// Tab body for Auto Scan (a paginated table) and Manual Upload (upload → form).
 class ScanTabScreen extends ConsumerStatefulWidget {
   const ScanTabScreen({super.key, required this.isAuto});
 
@@ -28,19 +28,161 @@ class ScanTabScreen extends ConsumerStatefulWidget {
 class _ScanTabScreenState extends ConsumerState<ScanTabScreen> {
   PlatformFile? _pickedFile;
   String? _autoFilter = 'Pending'; // null = All
-  String _searchQuery = '';
 
-  StateNotifierProvider<ScanController, ScanState> get _scanProvider =>
-      widget.isAuto ? autoScanControllerProvider : manualScanControllerProvider;
+  @override
+  Widget build(BuildContext context) {
+    return widget.isAuto ? _buildAuto() : _buildManual();
+  }
 
-  StateNotifierProvider<SubmitController, GenericState> get _submitProvider =>
-      widget.isAuto
-          ? autoSubmitControllerProvider
-          : manualSubmitControllerProvider;
+  // ── Auto Scan ───────────────────────────────────────────────────────────
+  Widget _buildAuto() {
+    final state = ref.watch(autoDocsControllerProvider);
 
-  StateNotifierProvider<DocsController, GenericState> get _docsProvider =>
-      widget.isAuto ? autoDocsControllerProvider : manualDocsControllerProvider;
+    if (state is LoadingState || state is InitialState) {
+      return const AppLoader();
+    }
+    if (state is ErrorState) {
+      return _AutoError(
+        message: state.exception.message,
+        onRetry: () => ref
+            .read(autoDocsControllerProvider.notifier)
+            .fetchDocs(shouldRefresh: true),
+      );
+    }
 
+    final allDocs =
+        (state as LoadedState<List<AutoDocModel>>).response ??
+            const <AutoDocModel>[];
+    final pending = allDocs.where((d) => d.status == 'Pending').length;
+    final approved = allDocs.where((d) => d.status == 'Approved').length;
+    final rejected = allDocs.where((d) => d.status == 'Rejected').length;
+
+    final filtered = _autoFilter == null
+        ? allDocs
+        : allDocs.where((d) => d.status == _autoFilter).toList();
+
+    return PaginatedTable<AutoDocModel>(
+      key: ValueKey(_autoFilter),
+      items: filtered,
+      searchHint: 'Search by id, file, maker, type…',
+      searchPredicate: _matchesAutoDoc,
+      filters: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _StatusFilterChip(
+            label: 'All',
+            count: allDocs.length,
+            color: ColorConstants.primaryColor,
+            selected: _autoFilter == null,
+            onTap: () => setState(() => _autoFilter = null),
+          ),
+          const SizedBox(width: 8),
+          _StatusFilterChip(
+            label: 'Pending',
+            count: pending,
+            color: ColorConstants.warningColor,
+            selected: _autoFilter == 'Pending',
+            onTap: () => setState(() => _autoFilter = 'Pending'),
+          ),
+          const SizedBox(width: 8),
+          _StatusFilterChip(
+            label: 'Approved',
+            count: approved,
+            color: ColorConstants.successColor,
+            selected: _autoFilter == 'Approved',
+            onTap: () => setState(() => _autoFilter = 'Approved'),
+          ),
+          const SizedBox(width: 8),
+          _StatusFilterChip(
+            label: 'Rejected',
+            count: rejected,
+            color: ColorConstants.errorColor,
+            selected: _autoFilter == 'Rejected',
+            onTap: () => setState(() => _autoFilter = 'Rejected'),
+          ),
+        ],
+      ),
+      columns: [
+        TableColumn(
+          label: 'Id',
+          flex: 2,
+          cell: (_, d) => Text(d.id, style: _cellStrong),
+        ),
+        TableColumn(
+          label: 'FileName',
+          flex: 4,
+          cell: (_, d) => Text(
+            d.fileName.isEmpty ? '—' : d.fileName,
+            style: AppTextStyles.caption,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        TableColumn(
+          label: 'Maker By',
+          flex: 3,
+          cell: (_, d) => Text(
+            d.makerBy.isEmpty ? '—' : d.makerBy,
+            style: AppTextStyles.caption,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        TableColumn(
+          label: 'Action',
+          flex: 3,
+          cell: (context, d) {
+            final isPending = d.status == 'Pending';
+            return Align(
+              alignment: Alignment.centerLeft,
+              child: FilledButton.icon(
+                onPressed: () => showMakerDocDialog(
+                  context,
+                  doc: d,
+                  isEditable: isPending,
+                  onSubmitSuccess: isPending
+                      ? () => ref
+                          .read(autoDocsControllerProvider.notifier)
+                          .removeDoc(d.id)
+                      : null,
+                ),
+                style: FilledButton.styleFrom(
+                  backgroundColor: ColorConstants.primaryColor,
+                  minimumSize: const Size(0, 32),
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                icon: Icon(
+                  isPending
+                      ? Icons.edit_rounded
+                      : Icons.open_in_new_rounded,
+                  size: 14,
+                ),
+                label: Text(
+                  isPending ? 'Edit & Submit' : 'View',
+                  style: const TextStyle(fontSize: 12),
+                ),
+              ),
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  static bool _matchesAutoDoc(AutoDocModel d, String query) {
+    if (query.isEmpty) return true;
+    final q = query.toLowerCase();
+    return d.id.toLowerCase().contains(q) ||
+        d.fileName.toLowerCase().contains(q) ||
+        d.makerBy.toLowerCase().contains(q) ||
+        d.referenceNumber.toLowerCase().contains(q) ||
+        d.transactionType.toLowerCase().contains(q) ||
+        d.status.toLowerCase().contains(q) ||
+        (d.fields['beneficiaryName'] ?? '').toLowerCase().contains(q);
+  }
+
+  // ── Manual Upload ───────────────────────────────────────────────────────
   Future<void> _pickFile() async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
@@ -50,266 +192,119 @@ class _ScanTabScreenState extends ConsumerState<ScanTabScreen> {
     if (result == null || result.files.isEmpty) return;
     final file = result.files.first;
     setState(() => _pickedFile = file);
-    await ref.read(_scanProvider.notifier).scan(file);
+    await ref.read(manualScanControllerProvider.notifier).scan(file);
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final docsState = ref.watch(_docsProvider);
-
-    // Auto scan: list view with status filter — data comes from API (no upload)
-    if (widget.isAuto) {
-      if (docsState is LoadingState || docsState is InitialState) {
-        return const AppLoader();
-      }
-      if (docsState is ErrorState) {
-        return Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.error_outline_rounded,
-                    size: 36, color: ColorConstants.errorColor),
-                const SizedBox(height: 12),
-                Text(
-                  docsState.exception.message,
-                  style: AppTextStyles.caption
-                      .copyWith(color: ColorConstants.errorColor),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 16),
-                FilledButton(
-                  onPressed: () => ref
-                      .read(_docsProvider.notifier)
-                      .fetchDocs(shouldRefresh: true),
-                  child: const Text('Retry'),
-                ),
-              ],
-            ),
-          ),
-        );
-      }
-
-      final allDocs =
-          (docsState as LoadedState<List<DocumentModel>>).response ??
-              const <DocumentModel>[];
-      final pendingCount = allDocs.where((d) => d.status == 'Pending').length;
-      final approvedCount = allDocs.where((d) => d.status == 'Approved').length;
-      final rejectedCount = allDocs.where((d) => d.status == 'Rejected').length;
-
-      final filtered = allDocs.where((d) {
-        final statusOk = _autoFilter == null || d.status == _autoFilter;
-        return statusOk && matchesDocQuery(d, _searchQuery);
-      }).toList();
-
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Filter chips
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  _StatusFilterChip(
-                    label: 'All',
-                    count: allDocs.length,
-                    color: ColorConstants.primaryColor,
-                    selected: _autoFilter == null,
-                    onTap: () => setState(() => _autoFilter = null),
-                  ),
-                  const SizedBox(width: 8),
-                  _StatusFilterChip(
-                    label: 'Pending',
-                    count: pendingCount,
-                    color: ColorConstants.warningColor,
-                    selected: _autoFilter == 'Pending',
-                    onTap: () => setState(() => _autoFilter = 'Pending'),
-                  ),
-                  const SizedBox(width: 8),
-                  _StatusFilterChip(
-                    label: 'Approved',
-                    count: approvedCount,
-                    color: ColorConstants.successColor,
-                    selected: _autoFilter == 'Approved',
-                    onTap: () => setState(() => _autoFilter = 'Approved'),
-                  ),
-                  const SizedBox(width: 8),
-                  _StatusFilterChip(
-                    label: 'Rejected',
-                    count: rejectedCount,
-                    color: ColorConstants.errorColor,
-                    selected: _autoFilter == 'Rejected',
-                    onTap: () => setState(() => _autoFilter = 'Rejected'),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          // Search
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-            child: SearchField(
-              hint: 'Search by reference, name, type…',
-              onChanged: (q) => setState(() => _searchQuery = q),
-            ),
-          ),
-          // Document list
-          Expanded(
-            child: filtered.isEmpty
-                ? Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.inbox_rounded,
-                            size: 40, color: ColorConstants.textMuted),
-                        const SizedBox(height: 12),
-                        Text(
-                          _searchQuery.isNotEmpty
-                              ? 'No documents match “$_searchQuery”'
-                              : _autoFilter == null
-                                  ? 'No documents found'
-                                  : 'No $_autoFilter documents',
-                          style: AppTextStyles.caption,
-                          textAlign: TextAlign.center,
-                        ),
-                      ],
-                    ),
-                  )
-                : PaginatedListView<DocumentModel>(
-                    items: filtered,
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                    resetKey: '$_autoFilter|$_searchQuery',
-                    separatorBuilder: (_, __) => const SizedBox(height: 12),
-                    itemBuilder: (context, doc, index) {
-                      final isPending = doc.status == 'Pending';
-                      return _AutoDocListCard(
-                        doc: doc,
-                        onTap: () => showMakerDocDialog(
-                          context,
-                          doc: doc,
-                          isEditable: isPending,
-                          onSubmitSuccess: isPending
-                              ? () => ref
-                                  .read(_docsProvider.notifier)
-                                  .removeDoc(doc.id)
-                              : null,
-                        ),
-                      );
-                    },
-                  ),
-          ),
-        ],
-      );
-    }
-
-    // Manual scan: original upload → scan → form → submit flow
-    final scanState = ref.watch(_scanProvider);
-    final submitState = ref.watch(_submitProvider);
+  Widget _buildManual() {
+    final scanState = ref.watch(manualScanControllerProvider);
+    final submitState = ref.watch(manualSubmitControllerProvider);
     final isSubmitting = submitState is LoadingState;
+    final result = scanState.result;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Upload Zone
           _UploadZone(
             file: _pickedFile,
             isScanning: scanState.isScanning,
             onPick: _pickFile,
             onClear: () {
               setState(() => _pickedFile = null);
-              ref.read(_scanProvider.notifier).reset();
-              ref.read(_submitProvider.notifier).reset();
+              ref.read(manualScanControllerProvider.notifier).reset();
+              ref.read(manualSubmitControllerProvider.notifier).reset();
             },
           ),
-
-          // Error
           if (scanState.error != null) ...[
             const SizedBox(height: 16),
             _ErrorBanner(message: scanState.error!),
           ],
-
-          // Form
-          if (scanState.result != null) ...[
-            const SizedBox(height: 24),
+          if (result != null) ...[
+            const SizedBox(height: 20),
             AppCard(
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.all(18),
               backgroundColor: ColorConstants.surface,
               child: TransactionForm(
-                type: scanState.result!.type,
-                initialValues: scanState.result!.fields,
+                type: result.type,
+                initialValues: result.fields,
                 isSubmitting: isSubmitting,
+                maxColumns: 3,
                 onSubmit: (fields, isEdited) async {
-                  await ref.read(_submitProvider.notifier).submit(
-                        documentId: scanState.result!.documentId,
-                        type: scanState.result!.type,
+                  await ref
+                      .read(manualSubmitControllerProvider.notifier)
+                      .submit(
+                        type: result.type,
                         fields: fields,
                         isEdited: isEdited,
-                        onSuccess: (doc) {
-                          ref.read(_docsProvider.notifier).prependDoc(doc);
-                          ref.read(_scanProvider.notifier).reset();
-                          ref.read(_submitProvider.notifier).reset();
+                        fileName: result.fileName,
+                        onSuccess: (refNo) {
+                          ref
+                              .read(manualScanControllerProvider.notifier)
+                              .reset();
+                          ref
+                              .read(manualSubmitControllerProvider.notifier)
+                              .reset();
                           setState(() => _pickedFile = null);
-                          _showSuccess(context, doc.referenceNumber);
+                          showSuccessDialog(
+                            context,
+                            title: 'Document Submitted',
+                            message:
+                                'Your document has been submitted for checker review.',
+                            referenceNumber: refNo,
+                          );
                         },
                       );
                   if (!mounted) return;
-                  final errMsg = submitState is ErrorState
-                      ? submitState.exception.message
-                      : null;
-                  if (errMsg != null) {
-                    SnackBarUtils.show(errMsg, type: SnackType.error);
+                  final latest = ref.read(manualSubmitControllerProvider);
+                  if (latest is ErrorState) {
+                    SnackBarUtils.show(latest.exception.message,
+                        type: SnackType.error);
                   }
                 },
               ),
             ),
           ],
-
-          // Documents list
-          const SizedBox(height: 28),
-          Text('Manual Scan Documents', style: AppTextStyles.title),
-          const SizedBox(height: 4),
-          Text(
-            'Your submitted documents and their current status.',
-            style: AppTextStyles.caption,
-          ),
-          const SizedBox(height: 14),
-          if (_hasManualDocs(docsState)) ...[
-            SearchField(
-              hint: 'Search by reference, name, type…',
-              onChanged: (q) => setState(() => _searchQuery = q),
-            ),
-            const SizedBox(height: 14),
-          ],
-          _DocsList(state: docsState, searchQuery: _searchQuery),
         ],
       ),
     );
   }
+}
 
-  bool _hasManualDocs(GenericState state) {
-    if (state is! LoadedState<List<DocumentModel>>) return false;
-    return (state.response?.isNotEmpty ?? false);
-  }
+const _cellStrong = TextStyle(
+  fontSize: 11.5,
+  fontWeight: FontWeight.w700,
+  color: ColorConstants.textPrimary,
+);
 
-  void _showSuccess(BuildContext context, String refNo) {
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Document Submitted'),
-        content: Text(
-          'Reference number: $refNo\n\nYour document has been submitted for checker review.',
+// ── Shared presentational widgets ──────────────────────────────────────────
+class _AutoError extends StatelessWidget {
+  const _AutoError({required this.message, required this.onRetry});
+
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.error_outline_rounded,
+                size: 36, color: ColorConstants.errorColor),
+            const SizedBox(height: 12),
+            Text(
+              message,
+              style: AppTextStyles.caption
+                  .copyWith(color: ColorConstants.errorColor),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            FilledButton(onPressed: onRetry, child: const Text('Retry')),
+          ],
         ),
-        actions: [
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Done'),
-          ),
-        ],
       ),
     );
   }
@@ -331,7 +326,7 @@ class _UploadZone extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AppCard(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(20),
       backgroundColor: ColorConstants.surface,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -339,16 +334,14 @@ class _UploadZone extends StatelessWidget {
           Row(
             children: [
               Container(
-                width: 48,
-                height: 48,
+                width: 44,
+                height: 44,
                 decoration: BoxDecoration(
                   gradient: ColorConstants.heroGradient,
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(14),
                 ),
-                child: const Icon(
-                  Icons.upload_file_rounded,
-                  color: Colors.white,
-                ),
+                child: const Icon(Icons.upload_file_rounded,
+                    color: Colors.white),
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -362,7 +355,7 @@ class _UploadZone extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
           if (isScanning)
             const _ScanningIndicator()
           else if (file != null)
@@ -387,9 +380,9 @@ class _ScanningIndicator extends StatelessWidget {
     return Row(
       children: [
         const SizedBox(
-          width: 20,
-          height: 20,
-          child: CircularProgressIndicator(strokeWidth: 2.5),
+          width: 18,
+          height: 18,
+          child: CircularProgressIndicator(strokeWidth: 2.4),
         ),
         const SizedBox(width: 12),
         Text(
@@ -414,39 +407,39 @@ class _FileChip extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          decoration: BoxDecoration(
-            color: ColorConstants.tagBg,
-            borderRadius: BorderRadius.circular(14),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(
-                Icons.insert_drive_file_rounded,
-                color: ColorConstants.tagFg,
-                size: 18,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                file.name,
-                style: AppTextStyles.caption.copyWith(
-                  color: ColorConstants.tagFg,
-                  fontWeight: FontWeight.w700,
+        Flexible(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: ColorConstants.tagBg,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.insert_drive_file_rounded,
+                    color: ColorConstants.tagFg, size: 18),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Text(
+                    file.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTextStyles.caption.copyWith(
+                      color: ColorConstants.tagFg,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
         const SizedBox(width: 8),
         IconButton(
           onPressed: onClear,
-          icon: const Icon(
-            Icons.close_rounded,
-            color: ColorConstants.textMuted,
-            size: 20,
-          ),
+          icon: const Icon(Icons.close_rounded,
+              color: ColorConstants.textMuted, size: 20),
           tooltip: 'Remove file',
         ),
       ],
@@ -465,206 +458,21 @@ class _ErrorBanner extends StatelessWidget {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: ColorConstants.errorColor.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: ColorConstants.errorColor.withValues(alpha: 0.2),
-        ),
+        borderRadius: BorderRadius.circular(14),
+        border:
+            Border.all(color: ColorConstants.errorColor.withValues(alpha: 0.2)),
       ),
       child: Row(
         children: [
-          const Icon(
-            Icons.error_outline_rounded,
-            color: ColorConstants.errorColor,
-            size: 20,
-          ),
+          const Icon(Icons.error_outline_rounded,
+              color: ColorConstants.errorColor, size: 20),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
               message,
-              style: AppTextStyles.caption.copyWith(
-                color: ColorConstants.errorColor,
-              ),
+              style: AppTextStyles.caption
+                  .copyWith(color: ColorConstants.errorColor),
             ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Client-side search predicate for a maker [DocumentModel].
-bool matchesDocQuery(DocumentModel d, String query) {
-  if (query.isEmpty) return true;
-  final q = query.toLowerCase();
-  return d.referenceNumber.toLowerCase().contains(q) ||
-      d.transactionType.toLowerCase().contains(q) ||
-      d.status.toLowerCase().contains(q) ||
-      (d.fields['beneficiaryName'] ?? '').toLowerCase().contains(q) ||
-      (d.fields['beneName'] ?? '').toLowerCase().contains(q);
-}
-
-class _DocsList extends StatelessWidget {
-  const _DocsList({required this.state, required this.searchQuery});
-
-  final GenericState state;
-  final String searchQuery;
-
-  @override
-  Widget build(BuildContext context) {
-    if (state is LoadingState || state is InitialState) {
-      return const AppLoader();
-    }
-    if (state is ErrorState) {
-      return Text(
-        (state as ErrorState).exception.message,
-        style: AppTextStyles.caption.copyWith(color: ColorConstants.errorColor),
-      );
-    }
-    final all = (state as LoadedState<List<DocumentModel>>).response ??
-        const <DocumentModel>[];
-    if (all.isEmpty) {
-      return const _EmptyDocs();
-    }
-    final docs = all.where((d) => matchesDocQuery(d, searchQuery)).toList();
-    if (docs.isEmpty) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 24),
-        child: Center(
-          child: Text(
-            'No documents match “$searchQuery”',
-            style: AppTextStyles.caption,
-          ),
-        ),
-      );
-    }
-    return PaginatedListView<DocumentModel>(
-      items: docs,
-      shrinkWrap: true,
-      resetKey: searchQuery,
-      separatorBuilder: (_, __) => const SizedBox(height: 12),
-      itemBuilder: (context, doc, index) => _DocumentCard(
-        doc: doc,
-        onView: () => showMakerDocDialog(context, doc: doc),
-      ),
-    );
-  }
-}
-
-class _DocumentCard extends StatelessWidget {
-  const _DocumentCard({required this.doc, required this.onView});
-
-  final DocumentModel doc;
-  final VoidCallback onView;
-
-  @override
-  Widget build(BuildContext context) {
-    final statusColor = _statusColor(doc.status);
-    final typeColor = _typeColor(doc.transactionType);
-    return AppCard(
-      padding: const EdgeInsets.all(16),
-      backgroundColor: ColorConstants.surface,
-      child: Row(
-        children: [
-          Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              color: typeColor.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(Icons.description_rounded, color: typeColor, size: 20),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(doc.referenceNumber, style: AppTextStyles.subtitle),
-                const SizedBox(height: 2),
-                Text(
-                  '${doc.transactionType} · ${doc.submittedAt}',
-                  style: AppTextStyles.caption,
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 10),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: statusColor.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(999),
-            ),
-            child: Text(
-              doc.status,
-              style: AppTextStyles.caption.copyWith(
-                color: statusColor,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ),
-          const SizedBox(width: 10),
-          FilledButton.icon(
-            onPressed: onView,
-            style: FilledButton.styleFrom(
-              backgroundColor: ColorConstants.primaryColor,
-              minimumSize: const Size(0, 36),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 0),
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            ),
-            icon: const Icon(Icons.open_in_new_rounded, size: 15),
-            label: const Text('View', style: TextStyle(fontSize: 13)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  static Color _statusColor(String status) {
-    switch (status) {
-      case 'Approved':
-        return ColorConstants.successColor;
-      case 'Rejected':
-        return ColorConstants.errorColor;
-      default:
-        return ColorConstants.warningColor;
-    }
-  }
-
-  static Color _typeColor(String type) {
-    switch (type) {
-      case 'RTGS':
-        return ColorConstants.infoColor;
-      case 'NEFT':
-        return ColorConstants.secondaryColor;
-      default:
-        return ColorConstants.accentColor;
-    }
-  }
-}
-
-class _EmptyDocs extends StatelessWidget {
-  const _EmptyDocs();
-
-  @override
-  Widget build(BuildContext context) {
-    return AppCard(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
-      backgroundColor: ColorConstants.surface,
-      child: Column(
-        children: [
-          const Icon(
-            Icons.inbox_rounded,
-            size: 38,
-            color: ColorConstants.textMuted,
-          ),
-          const SizedBox(height: 12),
-          Text('No documents yet', style: AppTextStyles.title),
-          const SizedBox(height: 6),
-          Text(
-            'Upload and submit a document to see it here.',
-            style: AppTextStyles.caption,
-            textAlign: TextAlign.center,
           ),
         ],
       ),
@@ -709,7 +517,7 @@ class _StatusFilterChip extends StatelessWidget {
               style: TextStyle(
                 color: selected ? Colors.white : color,
                 fontWeight: FontWeight.w700,
-                fontSize: 12.5,
+                fontSize: 12,
               ),
             ),
             const SizedBox(width: 5),
@@ -734,119 +542,5 @@ class _StatusFilterChip extends StatelessWidget {
         ),
       ),
     );
-  }
-}
-
-class _AutoDocListCard extends StatelessWidget {
-  const _AutoDocListCard({required this.doc, required this.onTap});
-
-  final DocumentModel doc;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final statusColor = _statusColor(doc.status);
-    final typeColor = _typeColor(doc.transactionType);
-    final isPending = doc.status == 'Pending';
-
-    return AppCard(
-      padding: const EdgeInsets.all(16),
-      backgroundColor: ColorConstants.surface,
-      child: Row(
-        children: [
-          Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              color: typeColor.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(Icons.description_rounded, color: typeColor, size: 20),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(doc.referenceNumber, style: AppTextStyles.subtitle),
-                const SizedBox(height: 2),
-                Text(
-                  '${doc.transactionType} · ${doc.submittedAt}',
-                  style: AppTextStyles.caption,
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 10),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-            decoration: BoxDecoration(
-              color: statusColor.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(999),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 6,
-                  height: 6,
-                  decoration:
-                      BoxDecoration(color: statusColor, shape: BoxShape.circle),
-                ),
-                const SizedBox(width: 5),
-                Text(
-                  doc.status,
-                  style: AppTextStyles.caption.copyWith(
-                    color: statusColor,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 11.5,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 10),
-          FilledButton.icon(
-            onPressed: onTap,
-            style: FilledButton.styleFrom(
-              backgroundColor: ColorConstants.primaryColor,
-              minimumSize: const Size(0, 36),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 0),
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            ),
-            icon: Icon(
-              isPending ? Icons.edit_rounded : Icons.open_in_new_rounded,
-              size: 15,
-            ),
-            label: Text(
-              isPending ? 'Edit & Submit' : 'View',
-              style: const TextStyle(fontSize: 13),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  static Color _statusColor(String status) {
-    switch (status) {
-      case 'Approved':
-        return ColorConstants.successColor;
-      case 'Rejected':
-        return ColorConstants.errorColor;
-      default:
-        return ColorConstants.warningColor;
-    }
-  }
-
-  static Color _typeColor(String type) {
-    switch (type) {
-      case 'RTGS':
-        return ColorConstants.infoColor;
-      case 'NEFT':
-        return ColorConstants.secondaryColor;
-      default:
-        return ColorConstants.accentColor;
-    }
   }
 }

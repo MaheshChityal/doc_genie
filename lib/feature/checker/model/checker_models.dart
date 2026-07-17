@@ -6,6 +6,7 @@ class CheckerDocModel {
     required this.transactionType,
     required this.status,
     required this.date,
+    this.fileName = '',
     this.fields = const {},
   });
 
@@ -15,6 +16,7 @@ class CheckerDocModel {
   final String transactionType;
   final String status;
   final String date;
+  final String fileName;
   final Map<String, String> fields;
 
   factory CheckerDocModel.fromJson(Map<String, dynamic> json) =>
@@ -25,6 +27,7 @@ class CheckerDocModel {
         transactionType: (json['transactionType'] ?? '').toString(),
         status: (json['status'] ?? '').toString(),
         date: (json['date'] ?? '').toString(),
+        fileName: (json['fileName'] ?? '').toString(),
         fields: (json['fields'] is Map)
             ? Map<String, String>.from(
                 (json['fields'] as Map).map(
@@ -41,6 +44,7 @@ class CheckerDocModel {
     transactionType: transactionType,
     status: status ?? this.status,
     date: date,
+    fileName: fileName,
     fields: fields,
   );
 }

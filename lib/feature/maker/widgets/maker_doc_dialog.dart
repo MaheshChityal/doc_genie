@@ -1,21 +1,22 @@
 import 'package:doc_genie/common/generic_state.dart';
 import 'package:doc_genie/constants/color_const.dart';
 import 'package:doc_genie/constants/text_styles.dart';
-import 'package:doc_genie/feature/maker/controller/maker_controller.dart';
+import 'package:doc_genie/feature/maker/controller/auto_controller.dart';
+import 'package:doc_genie/feature/maker/model/auto_doc_model.dart';
 import 'package:doc_genie/feature/maker/model/scan_models.dart';
 import 'package:doc_genie/feature/maker/widgets/transaction_form.dart';
 import 'package:doc_genie/utils/snackbar_utils.dart';
+import 'package:doc_genie/widgets/app_button.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// Opens the document detail as a pop-up dialog instead of a full screen.
 ///
-/// When [isEditable] (an auto pending doc) the form is editable and shows a
-/// remark entry above the Submit button; the remark is sent with the submit.
-/// Otherwise the form is read-only (View).
+/// When [isEditable] (an auto pending doc) the form is editable with a Submit
+/// button pinned at the bottom. Otherwise the form is read-only (View).
 Future<void> showMakerDocDialog(
   BuildContext context, {
-  required DocumentModel doc,
+  required AutoDocModel doc,
   bool isEditable = false,
   VoidCallback? onSubmitSuccess,
 }) {
@@ -37,7 +38,7 @@ class _MakerDocDialog extends ConsumerStatefulWidget {
     required this.onSubmitSuccess,
   });
 
-  final DocumentModel doc;
+  final AutoDocModel doc;
   final bool isEditable;
   final VoidCallback? onSubmitSuccess;
 
@@ -46,13 +47,7 @@ class _MakerDocDialog extends ConsumerStatefulWidget {
 }
 
 class _MakerDocDialogState extends ConsumerState<_MakerDocDialog> {
-  final TextEditingController _remarkController = TextEditingController();
-
-  @override
-  void dispose() {
-    _remarkController.dispose();
-    super.dispose();
-  }
+  final GlobalKey<TransactionFormState> _formKey = GlobalKey();
 
   Future<void> _submit(Map<String, String> fields, String isEdited) async {
     final notifier = ref.read(autoSubmitControllerProvider.notifier);
@@ -61,7 +56,6 @@ class _MakerDocDialogState extends ConsumerState<_MakerDocDialog> {
       type: TransactionTypeX.fromString(widget.doc.transactionType),
       fields: fields,
       isEdited: isEdited,
-      remark: _remarkController.text.trim(),
       onSuccess: (newDoc) {
         widget.onSubmitSuccess?.call();
         notifier.reset();
@@ -85,27 +79,28 @@ class _MakerDocDialogState extends ConsumerState<_MakerDocDialog> {
     final type = TransactionTypeX.fromString(widget.doc.transactionType);
     final isSubmitting = widget.isEditable &&
         ref.watch(autoSubmitControllerProvider) is LoadingState;
-    final maxHeight = MediaQuery.of(context).size.height * 0.85;
+    final maxHeight = MediaQuery.of(context).size.height * 0.9;
 
     return Dialog(
       insetPadding: const EdgeInsets.all(20),
       backgroundColor: ColorConstants.surface,
       child: ConstrainedBox(
-        constraints: BoxConstraints(maxWidth: 640, maxHeight: maxHeight),
+        constraints: BoxConstraints(maxWidth: 780, maxHeight: maxHeight),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             _DialogHeader(doc: widget.doc),
             const Divider(height: 1),
+            // Scrollable fields (two columns).
             Flexible(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.all(20),
                 child: TransactionForm(
+                  key: _formKey,
                   type: type,
                   initialValues: widget.doc.fields,
                   readOnly: !widget.isEditable,
-                  isSubmitting: isSubmitting,
-                  belowFields: widget.isEditable ? _remarkField() : null,
+                  showActions: false,
                   onSubmit: (fields, isEdited) {
                     if (!widget.isEditable) return;
                     _submit(fields, isEdited);
@@ -113,35 +108,21 @@ class _MakerDocDialogState extends ConsumerState<_MakerDocDialog> {
                 ),
               ),
             ),
+            // Pinned Submit — stays put while the fields scroll.
+            if (widget.isEditable) ...[
+              const Divider(height: 1),
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: AppButton(
+                  label: 'Submit',
+                  onPressed: () => _formKey.currentState?.submit(),
+                  isLoading: isSubmitting,
+                ),
+              ),
+            ],
           ],
         ),
       ),
-    );
-  }
-
-  Widget _remarkField() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Remark',
-          style: AppTextStyles.caption.copyWith(
-            color: ColorConstants.textPrimary,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        const SizedBox(height: 6),
-        TextField(
-          controller: _remarkController,
-          maxLines: 3,
-          decoration: const InputDecoration(
-            hintText: 'Enter your remark…',
-            border: OutlineInputBorder(),
-            contentPadding: EdgeInsets.all(12),
-          ),
-        ),
-        const SizedBox(height: 12),
-      ],
     );
   }
 }
@@ -149,7 +130,7 @@ class _MakerDocDialogState extends ConsumerState<_MakerDocDialog> {
 class _DialogHeader extends StatelessWidget {
   const _DialogHeader({required this.doc});
 
-  final DocumentModel doc;
+  final AutoDocModel doc;
 
   @override
   Widget build(BuildContext context) {

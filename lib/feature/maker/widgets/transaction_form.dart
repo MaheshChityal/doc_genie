@@ -14,6 +14,8 @@ class TransactionForm extends StatefulWidget {
     this.readOnly = false,
     this.isSubmitting = false,
     this.belowFields,
+    this.maxColumns = 2,
+    this.showActions = true,
   });
 
   final TransactionType type;
@@ -22,15 +24,23 @@ class TransactionForm extends StatefulWidget {
   final bool readOnly;
   final bool isSubmitting;
 
+  /// Maximum number of columns the field grid expands to on wide layouts.
+  final int maxColumns;
+
   /// Optional widget rendered between the field grid and the Submit button
   /// (e.g. a remark entry). Shown whenever non-null, regardless of [readOnly].
   final Widget? belowFields;
 
+  /// When false, the form renders only the field grid — no remark slot and no
+  /// Submit button. The caller then triggers submission externally via a
+  /// [GlobalKey]&lt;[TransactionFormState]&gt; and `state.submit()`.
+  final bool showActions;
+
   @override
-  State<TransactionForm> createState() => _TransactionFormState();
+  TransactionFormState createState() => TransactionFormState();
 }
 
-class _TransactionFormState extends State<TransactionForm> {
+class TransactionFormState extends State<TransactionForm> {
   final _formKey = GlobalKey<FormState>();
   final Map<String, TextEditingController> _controllers = {};
 
@@ -69,7 +79,7 @@ class _TransactionFormState extends State<TransactionForm> {
     super.dispose();
   }
 
-  void _submit() {
+  void submit() {
     if (_formKey.currentState?.validate() != true) return;
     FocusScope.of(context).unfocus();
     final fields = <String, String>{};
@@ -86,78 +96,127 @@ class _TransactionFormState extends State<TransactionForm> {
 
   @override
   Widget build(BuildContext context) {
-    final fields = fieldsForType(widget.type);
+    final sections = sectionsForType(widget.type);
 
     return Form(
       key: _formKey,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final w = constraints.maxWidth;
+          final columns = (w >= 960 ? widget.maxColumns : (w >= 640 ? 2 : 1))
+              .clamp(1, widget.maxColumns);
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (var s = 0; s < sections.length; s++) ...[
+                if (s > 0) const SizedBox(height: 12),
+                _SectionHeader(title: sections[s].title),
+                const SizedBox(height: 8),
+                _grid(sections[s].fields, columns),
+              ],
+              if (widget.belowFields != null && widget.showActions) ...[
+                const SizedBox(height: 4),
+                widget.belowFields!,
+              ],
+              if (!widget.readOnly && widget.showActions) ...[
+                const SizedBox(height: 12),
+                AppButton(
+                  label: 'Submit',
+                  onPressed: submit,
+                  isLoading: widget.isSubmitting,
+                ),
+              ],
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _grid(List<(String, String, bool)> fields, int columns) {
+    if (columns == 1) {
+      return Column(
         children: [
-          _TypeBadge(type: widget.type),
-          const SizedBox(height: 20),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final twoColumn = constraints.maxWidth >= 640;
-              if (twoColumn) {
-                final rows = <List<(String, String, bool)>>[];
-                for (var i = 0; i < fields.length; i += 2) {
-                  rows.add([
-                    fields[i],
-                    if (i + 1 < fields.length) fields[i + 1],
-                  ]);
-                }
-                return Column(
-                  children: [
-                    for (final row in rows) ...[
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          for (final f in row) ...[
-                            Expanded(
-                              child: _FieldTile(
-                                f: f,
-                                type: widget.type,
-                                controllers: _controllers,
-                                readOnly: widget.readOnly,
-                              ),
-                            ),
-                            if (row.indexOf(f) < row.length - 1)
-                              const SizedBox(width: 16),
-                          ],
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                    ],
-                  ],
-                );
-              }
-              return Column(
-                children: [
-                  for (final f in fields) ...[
-                    _FieldTile(
-                      f: f,
-                      type: widget.type,
-                      controllers: _controllers,
-                      readOnly: widget.readOnly,
-                    ),
-                    const SizedBox(height: 16),
-                  ],
-                ],
-              );
-            },
-          ),
-          if (widget.belowFields != null) ...[
-            const SizedBox(height: 4),
-            widget.belowFields!,
-          ],
-          if (!widget.readOnly) ...[
-            const SizedBox(height: 8),
-            AppButton(
-              label: 'Submit',
-              onPressed: _submit,
-              isLoading: widget.isSubmitting,
+          for (var i = 0; i < fields.length; i++) ...[
+            _FieldTile(
+              f: fields[i],
+              type: widget.type,
+              controllers: _controllers,
+              readOnly: widget.readOnly,
             ),
+            if (i < fields.length - 1) const SizedBox(height: 8),
           ],
+        ],
+      );
+    }
+    final rows = <List<(String, String, bool)>>[];
+    for (var i = 0; i < fields.length; i += columns) {
+      final end = (i + columns) > fields.length ? fields.length : i + columns;
+      rows.add(fields.sublist(i, end));
+    }
+    return Column(
+      children: [
+        for (var r = 0; r < rows.length; r++) ...[
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (var c = 0; c < columns; c++) ...[
+                Expanded(
+                  child: c < rows[r].length
+                      ? _FieldTile(
+                          f: rows[r][c],
+                          type: widget.type,
+                          controllers: _controllers,
+                          readOnly: widget.readOnly,
+                        )
+                      : const SizedBox.shrink(),
+                ),
+                if (c < columns - 1) const SizedBox(width: 12),
+              ],
+            ],
+          ),
+          if (r < rows.length - 1) const SizedBox(height: 8),
+        ],
+      ],
+    );
+  }
+}
+
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader({required this.title});
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: ColorConstants.primaryColor.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: ColorConstants.primaryColor.withValues(alpha: 0.15),
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 3.5,
+            height: 14,
+            decoration: BoxDecoration(
+              color: ColorConstants.primaryColor,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(width: 9),
+          Text(
+            title.toUpperCase(),
+            style: AppTextStyles.eyebrow.copyWith(
+              color: ColorConstants.primaryColor,
+              fontSize: 11.5,
+            ),
+          ),
         ],
       ),
     );
@@ -196,88 +255,41 @@ class _FieldTile extends StatelessWidget {
             ),
             if (optional)
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1),
                 decoration: BoxDecoration(
                   color: ColorConstants.surfaceAlt,
                   borderRadius: BorderRadius.circular(999),
                 ),
                 child: Text(
                   'Optional',
-                  style: AppTextStyles.caption.copyWith(fontSize: 10.5),
+                  style: AppTextStyles.caption.copyWith(fontSize: 10),
                 ),
               ),
           ],
         ),
-        const SizedBox(height: 6),
+        const SizedBox(height: 4),
         TextFormField(
           controller: controllers[key],
           readOnly: readOnly,
           enabled: !readOnly,
-          validator: readOnly
-              ? null
-              : validatorFor(key, optional, type, controllers),
+          validator:
+              readOnly ? null : validatorFor(key, optional, type, controllers),
           decoration: InputDecoration(
             hintText: optional ? 'Optional' : 'Enter $label',
             filled: true,
-            fillColor: readOnly
-                ? ColorConstants.surfaceAlt
-                : ColorConstants.surface,
+            fillColor:
+                readOnly ? ColorConstants.disabledFill : ColorConstants.surface,
+            disabledBorder: readOnly
+                ? OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: const BorderSide(
+                      color: ColorConstants.disabledBorder,
+                    ),
+                  )
+                : null,
           ),
         ),
       ],
     );
-  }
-}
-
-class _TypeBadge extends StatelessWidget {
-  const _TypeBadge({required this.type});
-
-  final TransactionType type;
-
-  @override
-  Widget build(BuildContext context) {
-    final color = _color(type);
-    return Row(
-      children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(999),
-            border: Border.all(color: color.withValues(alpha: 0.3)),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.swap_horiz_rounded, color: color, size: 18),
-              const SizedBox(width: 8),
-              Text(
-                type.label,
-                style: AppTextStyles.subtitle.copyWith(
-                  color: color,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(width: 10),
-        Text(
-          '${fieldsForType(type).length} fields',
-          style: AppTextStyles.caption,
-        ),
-      ],
-    );
-  }
-
-  static Color _color(TransactionType type) {
-    switch (type) {
-      case TransactionType.rtgs:
-        return ColorConstants.infoColor;
-      case TransactionType.neft:
-        return ColorConstants.secondaryColor;
-      case TransactionType.fundTransfer:
-        return ColorConstants.accentColor;
-    }
   }
 }

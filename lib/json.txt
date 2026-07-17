@@ -1,0 +1,222 @@
+---
+  1. Auth
+
+  POST auth/login — Login (no token)
+
+  Request payload
+  { "employeeCode": "M001", "password": "secret123" }
+  Response (accepts flat or wrapped in data; accessToken/token and refreshToken/refresh_token both accepted)
+  {
+    "accessToken": "eyJhbGc...",
+    "refreshToken": "eyJhbGc...",
+    "role": "maker",
+    "user": {
+      "id": "1",
+      "name": "Maker User",
+      "email": "maker@bank.com",
+      "employeeCode": "M001"
+    } 
+  }
+  role defaults to "maker" if missing; user is optional.
+
+  POST auth/refresh — Token refresh (no token, separate Dio)
+
+  Request payload
+  { "refreshToken": "eyJhbGc..." }
+  Response (accepts flat or data-wrapped)
+  { "accessToken": "eyJhbGc...", "refreshToken": "eyJhbGc..." }
+
+  POST auth/logout
+
+  Defined in ApiConstants but not wired to any call in the app.
+
+  ---
+  2. Home
+
+  GET home/feed — Dashboard (Bearer token)
+
+  Response
+  {
+    "stats": [
+      { "label": "Total Documents", "value": "128", "iconKey": "docs", "colorHex": 1612142939 },
+      { "label": "Pending Review",  "value": "14",  "iconKey": "pending", "colorHex": 15008539 }
+    ],
+    "recentActivity": [
+      {
+        "id": "1",
+        "referenceNumber": "DG-2026-001",
+        "transactionType": "RTGS",
+        "status": "Approved",
+        "date": "16 Jul 2026"
+      }
+    ]
+  }
+  colorHex is an int (ARGB). recentActivity is parsed but the UI currently doesn't render it.
+
+  ---
+  3. Maker — Auto Scan
+
+  GET maker/getAuto — Auto documents list (Bearer token)
+
+  Response — a JSON array of flat objects (AutoDocModel.fromJson):
+
+  [
+    {
+      "id": 1,
+      "fileName": "scan_001.pdf",
+      "makerBy": "M001",
+      "status": "Pending",
+      "remitterAccountType": "CASA",
+      "remitterAccountNumber": "57500001929681",
+      "chequeBasedTransaction": "With Cheque",
+      "chequeNumber": "0501",
+      "chequeDate": "2026-07-09T00:00:00",
+      "amount": 101375,
+      "amountInWords": "Amount in words for doc 1",
+      "sendingInformation": "Default",
+      "instructionPriority": "Normal",
+      "beneficiaryIFSCCode": "ICIC000401",
+      "beneficiaryAccountNumber": "04080505001",
+      "beneficiaryName": "FISCHER MARINE AND OFFSHORE PRIVATE LIMITED",
+      "beneficiaryAccountTypeCode": "Saving",
+      "leiCode": "",
+      "narration": "FUND TRANSFER",
+      "emailId": ""
+    }
+  ]
+  Notes: referenceNumber is derived client-side as DG-<id>; makerBy falls back to submittedBy; status defaults to "Pending"; chequeDate
+  (ISO) is shown as "9 Jul 2026".
+
+  POST maker/auto-scan — Submit edited auto doc (Bearer token)
+
+  Request payload (flat; amount numeric, chequeDate ISO)
+
+  {
+    "id": 1,
+    "remitterAccountType": "CASA",
+    "receiptMode": "RTGS",
+    "chequeBasedTransaction": "With Cheque",
+    "chequeNumber": "0501",
+    "chequeDate": "2026-07-09T00:00:00",
+    "amount": 101375,
+    "amountInWords": "One Lakh One Thousand...",
+    "sendingInformation": "Default",
+    "instructionPriority": "Normal",
+    "beneficiaryIFSCCode": "ICIC000401",
+    "beneficiaryAccountNumber": "04080505001",
+    "beneficiaryName": "FISCHER MARINE...",
+    "beneficiaryAccountTypeCode": "Saving",
+    "leiCode": "",
+    "narration": "FUND TRANSFER",
+    "emailId": "",
+    "remark": ""
+  }
+  Response — a single flat object, same shape as a maker/getAuto array element (parsed via AutoDocModel.fromJson).
+
+  ---
+  4. Maker — Manual Scan
+
+  POST maker/manual-scan — Upload/OCR (Bearer token, multipart)
+
+  Request — multipart/form-data with a single part file (raw bytes).
+  Response — flat object like the auto object but WITHOUT id (ManualScanModel.fromJson), plus transactionType/receiptMode and fileName:
+
+  {
+    "fileName": "cheque_scan.pdf",
+    "transactionType": "RTGS",
+    "remitterAccountType": "CASA",
+    "remitterAccountNumber": "57500001929680",
+    "receiptMode": "RTGS",
+    "chequeBasedTransaction": "With Cheque",
+    "chequeNumber": "0505",
+    "chequeDate": "2026-07-09T00:00:00",
+    "amount": 250000,
+    "amountInWords": "Two Lakh Fifty Thousand Only",
+    "sendingInformation": "Default",
+    "instructionPriority": "Normal",
+    "beneficiaryIFSCCode": "ICIC0000408",
+    "beneficiaryAccountNumber": "040805005064",
+    "beneficiaryName": "Acme Corp Ltd",
+    "beneficiaryAccountTypeCode": "Saving",
+    "leiCode": "",
+    "narration": "Vendor payment Q3",
+    "emailId": ""
+  }
+
+  POST maker/documents — Submit manual doc  ⚠️  currently sent without a Bearer token
+
+  Request payload (note: fields is a nested object here, unlike the flat auto submit; no id)
+
+  {
+    "transactionType": "RTGS",
+    "isEdited": "Y",
+    "remark": "",
+    "fileName": "cheque_scan.pdf",
+    "fields": {
+      "remitterAccountType": "CASA",
+      "remitterAccountNumber": "57500001929680",
+      "receiptMode": "RTGS",
+      "chequeNumber": "0505",
+      "chequeDate": "9 Jul 2026",
+      "amount": "250000",
+      "amountInWords": "Two Lakh Fifty Thousand Only",
+      "sendingInformation": "Default",
+      "instructionPriority": "Normal",
+      "beneficiaryIFSCCode": "ICIC0000408",
+      "beneficiaryAccountNumber": "040805005064",
+      "beneficiaryName": "Acme Corp Ltd",
+      "beneficiaryAccountTypeCode": "Saving",
+      "leiCode": "",
+      "narration": "Vendor payment Q3",
+      "emailId": ""
+    }
+  }
+  isEdited is "Y"/"N". Response — only referenceNumber (or id) is read, accepted flat or data-wrapped:
+  { "referenceNumber": "DG-2026-1234" }
+
+  ---
+  5. Checker
+
+  GET checker/documents — Review queue (Bearer token)
+
+  Response — array of CheckerDocModel.fromJson; here fields is a nested string map:
+
+  [
+    {
+      "id": "CHK001",
+      "referenceNumber": "DG-2026-AUTO001",
+      "transactionType": "RTGS",
+      "status": "Pending",
+      "date": "16 Jul 2026",
+      "fileName": "doc_005.pdf",
+      "fields": {
+        "remitterAccountType": "CASA",
+        "remitterAccountNumber": "12345678901",
+        "receiptMode": "Email",
+        "amount": "250000",
+        "beneIfscCode": "HDFC0001234",
+        "beneAccountNumber": "98765432101",
+        "beneName": "Acme Corp Ltd",
+        "narration": "Vendor payment Q3"
+      }
+    } 
+  ]
+
+  POST checker/documents/{id}/decide — Approve/Reject (Bearer token)
+
+  Request payload
+  { "decision": "Approved" }
+  decision is "Approved" or "Rejected". (The remark typed in the confirm dialog is not currently sent.) Response — only the HTTP status is
+  checked (2xx = success); no body is read.
+
+  ---
+  Things worth flagging
+  - maker/documents (manual submit) is sent without a Bearer token (RequestType.post), unlike the auto submit which uses the token —
+  likely should be postWithToken.
+  - maker/getManual is defined but never called (the Manual tab has no list anymore).
+  - fields shape is inconsistent: auto submit sends fields flat at the root; manual submit nests them under "fields"; checker returns them
+  nested. Worth aligning with your backend contract.
+  - fund_transfer uses a different key set in the form (remitterAccount, beneAccount) that the flat auto parser (autoScanFields) doesn't
+  map — confirm how the backend represents fund-transfer docs.
+  - Checker fields use different key names (beneIfscCode, beneName, beneAccountNumber) than the maker fields (beneficiaryIFSCCode,
+  beneficiaryName, beneficiaryAccountNumber).

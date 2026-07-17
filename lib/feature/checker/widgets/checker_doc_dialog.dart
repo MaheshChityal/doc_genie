@@ -109,13 +109,13 @@ class _CheckerDocDialogState extends ConsumerState<_CheckerDocDialog> {
   Widget build(BuildContext context) {
     final decided = _doc.status != 'Pending';
     final type = TransactionTypeX.fromString(_doc.transactionType);
-    final maxHeight = MediaQuery.of(context).size.height * 0.85;
+    final maxHeight = MediaQuery.of(context).size.height * 0.9;
 
     return Dialog(
       insetPadding: const EdgeInsets.all(20),
       backgroundColor: ColorConstants.surface,
       child: ConstrainedBox(
-        constraints: BoxConstraints(maxWidth: 640, maxHeight: maxHeight),
+        constraints: BoxConstraints(maxWidth: 780, maxHeight: maxHeight),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -128,18 +128,18 @@ class _CheckerDocDialogState extends ConsumerState<_CheckerDocDialog> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _StatusBanner(status: _doc.status),
-                    const SizedBox(height: 20),
+                    // _StatusBanner(status: _doc.status),
+                    // const SizedBox(height: 20),
                     Text(
                       'Document Details',
                       style: AppTextStyles.subtitle,
                     ),
                     const SizedBox(height: 6),
-                    Text(
-                      'Submitted on ${_doc.date} by ${_doc.submittedBy}',
-                      style: AppTextStyles.caption,
-                    ),
-                    const SizedBox(height: 16),
+                    // Text(
+                    //   'Submitted on ${_doc.date} by ${_doc.submittedBy}',
+                    //   style: AppTextStyles.caption,
+                    // ),
+                    // const SizedBox(height: 16),
                     TransactionForm(
                       type: type,
                       initialValues: _doc.fields,
@@ -245,53 +245,53 @@ class _DialogHeader extends StatelessWidget {
   }
 }
 
-class _StatusBanner extends StatelessWidget {
-  const _StatusBanner({required this.status});
+// class _StatusBanner extends StatelessWidget {
+//   const _StatusBanner({required this.status});
 
-  final String status;
+//   final String status;
 
-  static Color _color(String s) {
-    switch (s) {
-      case 'Approved':
-        return ColorConstants.successColor;
-      case 'Rejected':
-        return ColorConstants.errorColor;
-      default:
-        return ColorConstants.warningColor;
-    }
-  }
+//   static Color _color(String s) {
+//     switch (s) {
+//       case 'Approved':
+//         return ColorConstants.successColor;
+//       case 'Rejected':
+//         return ColorConstants.errorColor;
+//       default:
+//         return ColorConstants.warningColor;
+//     }
+//   }
 
-  static IconData _icon(String s) {
-    switch (s) {
-      case 'Approved':
-        return Icons.check_circle_rounded;
-      case 'Rejected':
-        return Icons.cancel_rounded;
-      default:
-        return Icons.schedule_rounded;
-    }
-  }
+//   static IconData _icon(String s) {
+//     switch (s) {
+//       case 'Approved':
+//         return Icons.check_circle_rounded;
+//       case 'Rejected':
+//         return Icons.cancel_rounded;
+//       default:
+//         return Icons.schedule_rounded;
+//     }
+//   }
 
-  @override
-  Widget build(BuildContext context) {
-    final color = _color(status);
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withValues(alpha: 0.22)),
-      ),
-      child: Row(
-        children: [
-          Icon(_icon(status), color: color, size: 24),
-          const SizedBox(width: 12),
-          Text(
-            status == 'Pending' ? 'Awaiting Review' : status,
-            style: AppTextStyles.subtitle.copyWith(color: color),
-          ),
-        ],
-      ),
-    );
-  }
-}
+//   @override
+//   Widget build(BuildContext context) {
+//     final color = _color(status);
+//     return Container(
+//       padding: const EdgeInsets.all(16),
+//       decoration: BoxDecoration(
+//         color: color.withValues(alpha: 0.08),
+//         borderRadius: BorderRadius.circular(20),
+//         border: Border.all(color: color.withValues(alpha: 0.22)),
+//       ),
+//       child: Row(
+//         children: [
+//           Icon(_icon(status), color: color, size: 24),
+//           const SizedBox(width: 12),
+//           Text(
+//             status == 'Pending' ? 'Awaiting Review' : status,
+//             style: AppTextStyles.subtitle.copyWith(color: color),
+//           ),
+//         ],
+//       ),
+//     );
+//   }
+// }

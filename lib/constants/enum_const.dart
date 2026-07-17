@@ -5,6 +5,7 @@ enum RequestType {
   postWithToken,
   postMultiPartWithToken,
   putWithToken,
+  put,
   patchWithToken,
   deleteWithToken,
 }

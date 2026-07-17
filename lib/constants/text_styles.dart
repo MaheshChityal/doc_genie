@@ -5,15 +5,15 @@ class AppTextStyles {
   const AppTextStyles._();
 
   static const TextStyle heading = TextStyle(
-    fontSize: 30,
+    fontSize: 26,
     height: 1.05,
-    letterSpacing: -0.9,
+    letterSpacing: -0.8,
     fontWeight: FontWeight.w800,
     color: ColorConstants.textPrimary,
   );
 
   static const TextStyle title = TextStyle(
-    fontSize: 20,
+    fontSize: 18,
     height: 1.15,
     letterSpacing: -0.4,
     fontWeight: FontWeight.w700,
@@ -21,35 +21,35 @@ class AppTextStyles {
   );
 
   static const TextStyle subtitle = TextStyle(
-    fontSize: 16,
+    fontSize: 14.5,
     height: 1.25,
     fontWeight: FontWeight.w600,
     color: ColorConstants.textPrimary,
   );
 
   static const TextStyle body = TextStyle(
-    fontSize: 14.5,
-    height: 1.55,
+    fontSize: 13.5,
+    height: 1.5,
     fontWeight: FontWeight.w400,
     color: ColorConstants.textPrimary,
   );
 
   static const TextStyle caption = TextStyle(
-    fontSize: 12.5,
-    height: 1.45,
+    fontSize: 11.5,
+    height: 1.4,
     fontWeight: FontWeight.w500,
-    color: ColorConstants.textSecondary,
+    color: Color.fromARGB(255, 84, 93, 100),
   );
 
   static const TextStyle eyebrow = TextStyle(
-    fontSize: 11.5,
-    letterSpacing: 1.2,
+    fontSize: 11,
+    letterSpacing: 1.1,
     fontWeight: FontWeight.w800,
     color: ColorConstants.textSecondary,
   );
 
   static const TextStyle button = TextStyle(
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: FontWeight.w700,
     letterSpacing: 0.1,
     color: Colors.white,

@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 
 ThemeData lightTheme() {
   final base = ThemeData.light(useMaterial3: true);
-  const radius = 22.0;
+  const radius = 14.0;
 
   return base.copyWith(
     scaffoldBackgroundColor: ColorConstants.background,
@@ -43,8 +43,9 @@ ThemeData lightTheme() {
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
       fillColor: ColorConstants.surface,
+      isDense: true,
       hintStyle: AppTextStyles.body.copyWith(color: ColorConstants.textMuted),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(radius),
         borderSide: const BorderSide(color: ColorConstants.border),
@@ -86,7 +87,7 @@ ThemeData lightTheme() {
       color: ColorConstants.surface,
       elevation: 0,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: BorderRadius.circular(18),
         side: const BorderSide(color: ColorConstants.border),
       ),
     ),
@@ -95,8 +96,8 @@ ThemeData lightTheme() {
         backgroundColor: ColorConstants.primaryColor,
         foregroundColor: Colors.white,
         textStyle: AppTextStyles.button,
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
     ),
     elevatedButtonTheme: ElevatedButtonThemeData(
@@ -105,8 +106,8 @@ ThemeData lightTheme() {
         foregroundColor: Colors.white,
         textStyle: AppTextStyles.button,
         elevation: 0,
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
@@ -114,8 +115,8 @@ ThemeData lightTheme() {
         foregroundColor: ColorConstants.textPrimary,
         side: const BorderSide(color: ColorConstants.border),
         textStyle: AppTextStyles.body.copyWith(fontWeight: FontWeight.w700),
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
     ),
     textButtonTheme: TextButtonThemeData(

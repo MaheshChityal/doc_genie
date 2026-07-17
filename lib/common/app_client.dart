@@ -106,6 +106,13 @@ class AppClient {
           queryParameters: queryParameters,
           options: Options(headers: _bearerHeaders),
         );
+      case RequestType.put:
+        return _dio.put(
+          url,
+          data: jsonEncode(parameter),
+          queryParameters: queryParameters,
+          options: Options(headers: _plainHeaders),
+        );
       case RequestType.patchWithToken:
         return _dio.patch(
           url,
