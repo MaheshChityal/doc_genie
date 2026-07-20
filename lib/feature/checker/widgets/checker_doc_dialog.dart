@@ -4,7 +4,10 @@ import 'package:doc_genie/feature/checker/controller/checker_controller.dart';
 import 'package:doc_genie/feature/checker/model/checker_models.dart';
 import 'package:doc_genie/feature/maker/model/scan_models.dart';
 import 'package:doc_genie/feature/maker/widgets/transaction_form.dart';
+import 'package:doc_genie/utils/navigator_utils.dart';
 import 'package:doc_genie/utils/snackbar_utils.dart';
+import 'package:doc_genie/widgets/document_preview_pane.dart';
+import 'package:doc_genie/widgets/success_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -97,11 +100,15 @@ class _CheckerDocDialogState extends ConsumerState<_CheckerDocDialog> {
       SnackBarUtils.show(error, type: SnackType.error);
       return;
     }
-    // Close the detail dialog, then show feedback via the global navigator.
+    // Close the detail dialog, then confirm via a success dialog.
     Navigator.of(context).pop();
-    SnackBarUtils.show(
-      '${_doc.referenceNumber} ${decision == 'Approved' ? 'approved' : 'rejected'} successfully',
-      type: decision == 'Approved' ? SnackType.success : SnackType.error,
+    final approved = decision == 'Approved';
+    showSuccessDialog(
+      navigatorKey.currentContext ?? context,
+      title: approved ? 'Document Approved' : 'Document Rejected',
+      message:
+          '${_doc.referenceNumber} has been ${approved ? 'approved' : 'rejected'}.',
+      referenceNumber: _doc.referenceNumber,
     );
   }
 
@@ -109,87 +116,103 @@ class _CheckerDocDialogState extends ConsumerState<_CheckerDocDialog> {
   Widget build(BuildContext context) {
     final decided = _doc.status != 'Pending';
     final type = TransactionTypeX.fromString(_doc.transactionType);
-    final maxHeight = MediaQuery.of(context).size.height * 0.9;
+    final maxHeight = MediaQuery.of(context).size.height * 0.92;
 
     return Dialog(
-      insetPadding: const EdgeInsets.all(20),
+      insetPadding: const EdgeInsets.all(16),
       backgroundColor: ColorConstants.surface,
       child: ConstrainedBox(
-        constraints: BoxConstraints(maxWidth: 780, maxHeight: maxHeight),
+        constraints: BoxConstraints(maxWidth: 1180, maxHeight: maxHeight),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             _DialogHeader(doc: _doc),
             const Divider(height: 1),
-            // Scrollable content.
             Flexible(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // _StatusBanner(status: _doc.status),
-                    // const SizedBox(height: 20),
-                    Text(
-                      'Document Details',
-                      style: AppTextStyles.subtitle,
-                    ),
-                    const SizedBox(height: 6),
-                    // Text(
-                    //   'Submitted on ${_doc.date} by ${_doc.submittedBy}',
-                    //   style: AppTextStyles.caption,
-                    // ),
-                    // const SizedBox(height: 16),
-                    TransactionForm(
-                      type: type,
-                      initialValues: _doc.fields,
-                      readOnly: true,
-                      onSubmit: (fields, isEdited) {},
-                    ),
-                  ],
-                ),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final detail = _detailPane(type, decided);
+                  if (constraints.maxWidth < 860) return detail;
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Expanded(
+                        flex: 5,
+                        child: DocumentPreviewPane(
+                          fileName: _doc.fileName,
+                          fileBytes: _doc.fileBytes,
+                        ),
+                      ),
+                      const VerticalDivider(width: 1),
+                      Expanded(flex: 6, child: detail),
+                    ],
+                  );
+                },
               ),
             ),
-            // Pinned action bar — stays put while the content above scrolls.
-            if (!decided) ...[
-              const Divider(height: 1),
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: () => _confirmDecision('Rejected'),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: ColorConstants.errorColor,
-                          side: const BorderSide(
-                            color: ColorConstants.errorColor,
-                          ),
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                        ),
-                        icon: const Icon(Icons.close_rounded, size: 20),
-                        label: const Text('Reject'),
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: FilledButton.icon(
-                        onPressed: () => _confirmDecision('Approved'),
-                        style: FilledButton.styleFrom(
-                          backgroundColor: ColorConstants.successColor,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                        ),
-                        icon: const Icon(Icons.check_rounded, size: 20),
-                        label: const Text('Approve'),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
           ],
         ),
       ),
+    );
+  }
+
+  Widget _detailPane(TransactionType type, bool decided) {
+    return Column(
+      children: [
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Document Details', style: AppTextStyles.subtitle),
+                const SizedBox(height: 12),
+                TransactionForm(
+                  type: type,
+                  initialValues: _doc.fields,
+                  readOnly: true,
+                  onSubmit: (fields, isEdited) {},
+                ),
+              ],
+            ),
+          ),
+        ),
+        // Pinned action bar — stays put while the content above scrolls.
+        if (!decided) ...[
+          const Divider(height: 1),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () => _confirmDecision('Rejected'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: ColorConstants.errorColor,
+                      side: const BorderSide(color: ColorConstants.errorColor),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                    icon: const Icon(Icons.close_rounded, size: 20),
+                    label: const Text('Reject'),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: () => _confirmDecision('Approved'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: ColorConstants.successColor,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                    icon: const Icon(Icons.check_rounded, size: 20),
+                    label: const Text('Approve'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ],
     );
   }
 }

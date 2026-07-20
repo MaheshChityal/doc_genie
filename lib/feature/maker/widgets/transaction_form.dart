@@ -103,7 +103,7 @@ class TransactionFormState extends State<TransactionForm> {
       child: LayoutBuilder(
         builder: (context, constraints) {
           final w = constraints.maxWidth;
-          final columns = (w >= 960 ? widget.maxColumns : (w >= 640 ? 2 : 1))
+          final columns = (w >= 960 ? widget.maxColumns : (w >= 480 ? 2 : 1))
               .clamp(1, widget.maxColumns);
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,

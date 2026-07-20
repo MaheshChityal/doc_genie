@@ -1,16 +1,18 @@
+import 'dart:typed_data';
+
 import 'package:doc_genie/common/generic_state.dart';
 import 'package:doc_genie/constants/color_const.dart';
 import 'package:doc_genie/constants/text_styles.dart';
 import 'package:doc_genie/feature/maker/controller/auto_controller.dart';
 import 'package:doc_genie/feature/maker/controller/manual_controller.dart';
 import 'package:doc_genie/feature/maker/model/auto_doc_model.dart';
-import 'package:doc_genie/feature/maker/widgets/maker_doc_dialog.dart';
-import 'package:doc_genie/feature/maker/widgets/transaction_form.dart';
+import 'package:doc_genie/feature/maker/model/manual_scan_model.dart';
+import 'package:doc_genie/feature/maker/model/scan_models.dart';
+import 'package:doc_genie/feature/maker/widgets/doc_form_dialog.dart';
 import 'package:doc_genie/utils/snackbar_utils.dart';
 import 'package:doc_genie/widgets/app_card.dart';
 import 'package:doc_genie/widgets/app_loader.dart';
 import 'package:doc_genie/widgets/paginated_table.dart';
-import 'package:doc_genie/widgets/success_dialog.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -50,9 +52,8 @@ class _ScanTabScreenState extends ConsumerState<ScanTabScreen> {
       );
     }
 
-    final allDocs =
-        (state as LoadedState<List<AutoDocModel>>).response ??
-            const <AutoDocModel>[];
+    final allDocs = (state as LoadedState<List<AutoDocModel>>).response ??
+        const <AutoDocModel>[];
     final pending = allDocs.where((d) => d.status == 'Pending').length;
     final approved = allDocs.where((d) => d.status == 'Approved').length;
     final rejected = allDocs.where((d) => d.status == 'Rejected').length;
@@ -69,14 +70,6 @@ class _ScanTabScreenState extends ConsumerState<ScanTabScreen> {
       filters: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _StatusFilterChip(
-            label: 'All',
-            count: allDocs.length,
-            color: ColorConstants.primaryColor,
-            selected: _autoFilter == null,
-            onTap: () => setState(() => _autoFilter = null),
-          ),
-          const SizedBox(width: 8),
           _StatusFilterChip(
             label: 'Pending',
             count: pending,
@@ -99,6 +92,14 @@ class _ScanTabScreenState extends ConsumerState<ScanTabScreen> {
             color: ColorConstants.errorColor,
             selected: _autoFilter == 'Rejected',
             onTap: () => setState(() => _autoFilter = 'Rejected'),
+          ),
+          const SizedBox(width: 8),
+          _StatusFilterChip(
+            label: 'All',
+            count: allDocs.length,
+            color: ColorConstants.primaryColor,
+            selected: _autoFilter == null,
+            onTap: () => setState(() => _autoFilter = null),
           ),
         ],
       ),
@@ -136,14 +137,16 @@ class _ScanTabScreenState extends ConsumerState<ScanTabScreen> {
             return Align(
               alignment: Alignment.centerLeft,
               child: FilledButton.icon(
-                onPressed: () => showMakerDocDialog(
+                onPressed: () => showDocFormDialog(
                   context,
-                  doc: d,
-                  isEditable: isPending,
-                  onSubmitSuccess: isPending
-                      ? () => ref
-                          .read(autoDocsControllerProvider.notifier)
-                          .removeDoc(d.id)
+                  title: d.referenceNumber,
+                  subtitle: '${d.transactionType} · Submitted ${d.submittedAt}',
+                  fileName: d.fileName,
+                  fileBytes: d.fileBytes,
+                  type: TransactionTypeX.fromString(d.transactionType),
+                  initialValues: d.fields,
+                  onSubmit: isPending
+                      ? (fields, isEdited) => _submitAuto(d, fields, isEdited)
                       : null,
                 ),
                 style: FilledButton.styleFrom(
@@ -153,9 +156,7 @@ class _ScanTabScreenState extends ConsumerState<ScanTabScreen> {
                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
                 icon: Icon(
-                  isPending
-                      ? Icons.edit_rounded
-                      : Icons.open_in_new_rounded,
+                  isPending ? Icons.edit_rounded : Icons.open_in_new_rounded,
                   size: 14,
                 ),
                 label: Text(
@@ -182,23 +183,87 @@ class _ScanTabScreenState extends ConsumerState<ScanTabScreen> {
         (d.fields['beneficiaryName'] ?? '').toLowerCase().contains(q);
   }
 
+  Future<String?> _submitAuto(
+      AutoDocModel d, Map<String, String> fields, String isEdited) async {
+    String? refNo;
+    final notifier = ref.read(autoSubmitControllerProvider.notifier);
+    await notifier.submit(
+      documentId: d.id,
+      type: TransactionTypeX.fromString(d.transactionType),
+      fields: fields,
+      isEdited: isEdited,
+      onSuccess: (newDoc) {
+        refNo = newDoc.referenceNumber;
+        ref.read(autoDocsControllerProvider.notifier).removeDoc(d.id);
+        notifier.reset();
+      },
+    );
+    if (!mounted) return null;
+    final state = ref.read(autoSubmitControllerProvider);
+    if (state is ErrorState) {
+      SnackBarUtils.show(state.exception.message, type: SnackType.error);
+      return null;
+    }
+    return refNo;
+  }
+
   // ── Manual Upload ───────────────────────────────────────────────────────
   Future<void> _pickFile() async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
-      allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'],
+      allowedExtensions: ['pdf'],
       withData: true,
     );
     if (result == null || result.files.isEmpty) return;
     final file = result.files.first;
     setState(() => _pickedFile = file);
     await ref.read(manualScanControllerProvider.notifier).scan(file);
+    if (!mounted) return;
+    final scan = ref.read(manualScanControllerProvider);
+    if (scan.result != null) {
+      _openManualDialog(scan.result!, file.bytes);
+    }
+  }
+
+  void _openManualDialog(ManualScanModel model, Uint8List? bytes) {
+    showDocFormDialog(
+      context,
+      title: 'Manual Upload',
+      subtitle: '${model.type.label} · ${model.fileName}',
+      fileName: model.fileName,
+      fileBytes: bytes,
+      type: model.type,
+      initialValues: model.fields,
+      onSubmit: (fields, isEdited) => _submitManual(model, fields, isEdited),
+    );
+  }
+
+  Future<String?> _submitManual(ManualScanModel model,
+      Map<String, String> fields, String isEdited) async {
+    String? refNo;
+    await ref.read(manualSubmitControllerProvider.notifier).submit(
+          type: model.type,
+          fields: fields,
+          isEdited: isEdited,
+          fileName: model.fileName,
+          onSuccess: (r) {
+            refNo = r;
+            ref.read(manualScanControllerProvider.notifier).reset();
+            ref.read(manualSubmitControllerProvider.notifier).reset();
+            if (mounted) setState(() => _pickedFile = null);
+          },
+        );
+    if (!mounted) return null;
+    final state = ref.read(manualSubmitControllerProvider);
+    if (state is ErrorState) {
+      SnackBarUtils.show(state.exception.message, type: SnackType.error);
+      return null;
+    }
+    return refNo;
   }
 
   Widget _buildManual() {
     final scanState = ref.watch(manualScanControllerProvider);
-    final submitState = ref.watch(manualSubmitControllerProvider);
-    final isSubmitting = submitState is LoadingState;
     final result = scanState.result;
 
     return SingleChildScrollView(
@@ -222,47 +287,9 @@ class _ScanTabScreenState extends ConsumerState<ScanTabScreen> {
           ],
           if (result != null) ...[
             const SizedBox(height: 20),
-            AppCard(
-              padding: const EdgeInsets.all(18),
-              backgroundColor: ColorConstants.surface,
-              child: TransactionForm(
-                type: result.type,
-                initialValues: result.fields,
-                isSubmitting: isSubmitting,
-                maxColumns: 3,
-                onSubmit: (fields, isEdited) async {
-                  await ref
-                      .read(manualSubmitControllerProvider.notifier)
-                      .submit(
-                        type: result.type,
-                        fields: fields,
-                        isEdited: isEdited,
-                        fileName: result.fileName,
-                        onSuccess: (refNo) {
-                          ref
-                              .read(manualScanControllerProvider.notifier)
-                              .reset();
-                          ref
-                              .read(manualSubmitControllerProvider.notifier)
-                              .reset();
-                          setState(() => _pickedFile = null);
-                          showSuccessDialog(
-                            context,
-                            title: 'Document Submitted',
-                            message:
-                                'Your document has been submitted for checker review.',
-                            referenceNumber: refNo,
-                          );
-                        },
-                      );
-                  if (!mounted) return;
-                  final latest = ref.read(manualSubmitControllerProvider);
-                  if (latest is ErrorState) {
-                    SnackBarUtils.show(latest.exception.message,
-                        type: SnackType.error);
-                  }
-                },
-              ),
+            _ReviewCard(
+              fileName: _pickedFile?.name ?? result.fileName,
+              onReview: () => _openManualDialog(result, _pickedFile?.bytes),
             ),
           ],
         ],
@@ -276,6 +303,59 @@ const _cellStrong = TextStyle(
   fontWeight: FontWeight.w700,
   color: ColorConstants.textPrimary,
 );
+
+/// Shown after a manual upload is scanned — lets the user re-open the review
+/// popup if they closed it without submitting.
+class _ReviewCard extends StatelessWidget {
+  const _ReviewCard({required this.fileName, required this.onReview});
+
+  final String fileName;
+  final VoidCallback onReview;
+
+  @override
+  Widget build(BuildContext context) {
+    return AppCard(
+      padding: const EdgeInsets.all(18),
+      backgroundColor: ColorConstants.surface,
+      child: Row(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: ColorConstants.successColor.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(Icons.check_circle_rounded,
+                color: ColorConstants.successColor),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Document Scanned', style: AppTextStyles.subtitle),
+                const SizedBox(height: 2),
+                Text(
+                  fileName,
+                  style: AppTextStyles.caption,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          FilledButton.icon(
+            onPressed: onReview,
+            icon: const Icon(Icons.edit_rounded, size: 16),
+            label: const Text('Review & Submit'),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 // ── Shared presentational widgets ──────────────────────────────────────────
 class _AutoError extends StatelessWidget {
@@ -340,8 +420,8 @@ class _UploadZone extends StatelessWidget {
                   gradient: ColorConstants.heroGradient,
                   borderRadius: BorderRadius.circular(14),
                 ),
-                child: const Icon(Icons.upload_file_rounded,
-                    color: Colors.white),
+                child:
+                    const Icon(Icons.upload_file_rounded, color: Colors.white),
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -349,7 +429,7 @@ class _UploadZone extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text('Upload Document', style: AppTextStyles.subtitle),
-                    Text('PDF, JPG or PNG', style: AppTextStyles.caption),
+                    Text('PDF', style: AppTextStyles.caption),
                   ],
                 ),
               ),

@@ -5,6 +5,7 @@ import 'package:doc_genie/config/app_config.dart';
 import 'package:doc_genie/constants/api_constants.dart';
 import 'package:doc_genie/constants/enum_const.dart';
 import 'package:doc_genie/services/secure_helper.dart';
+import 'package:doc_genie/services/session_manager.dart';
 import 'package:doc_genie/utils/app_logger.dart';
 import 'package:doc_genie/utils/navigator_utils.dart';
 import 'package:doc_genie/utils/snackbar_utils.dart';
@@ -29,6 +30,10 @@ class AppClient {
 
   static final AppClient instance = AppClient._();
 
+  /// Mirrors AuthRepository.useMockAuth — simulates the refresh endpoint so the
+  /// session/extend flow works without a backend. Set to false with real APIs.
+  static const bool mockAuth = true;
+
   late final Dio _dio;
   late final Dio _refreshDio;
 
@@ -36,6 +41,13 @@ class AppClient {
   static String refresh = '';
 
   Future<String?>? _refreshFuture;
+
+  /// Calls the refresh endpoint (single-flight). Returns true on success.
+  /// Used by the session-expiry popup's "Stay Signed In" action.
+  Future<bool> refreshSession() async {
+    final newToken = await _refreshTokenIfNeeded();
+    return newToken != null;
+  }
 
   Future<void> init() async {
     token = await SecureHelper.instance.getAccessToken() ?? '';
@@ -57,6 +69,10 @@ class AppClient {
     'Content-Type': 'multipart/form-data',
     'Accept': '*/*',
     'Authorization': 'Bearer $token',
+  };
+  Map<String, dynamic> get _multipartPlainHeaders => {
+    'Content-Type': 'multipart/form-data',
+    'Accept': '*/*',
   };
 
   Future<Response> request({
@@ -98,6 +114,13 @@ class AppClient {
           data: parameter,
           queryParameters: queryParameters,
           options: Options(headers: _multipartBearerHeaders),
+        );
+      case RequestType.postMultiPart:
+        return _dio.post(
+          url,
+          data: parameter,
+          queryParameters: queryParameters,
+          options: Options(headers: _multipartPlainHeaders),
         );
       case RequestType.putWithToken:
         return _dio.put(
@@ -153,7 +176,8 @@ class AppClient {
           } catch (_) {}
         }
 
-        await _forceLogout();
+        // Refresh failed (incl. 401 on the refresh endpoint) → sign out.
+        await logout(expired: true);
         return handler.next(error);
       },
     );
@@ -170,6 +194,21 @@ class AppClient {
         refresh = await SecureHelper.instance.getRefreshToken() ?? '';
       }
       if (refresh.isEmpty) return null;
+
+      if (mockAuth) {
+        // Simulate a successful refresh so the session flow is testable.
+        await Future<void>.delayed(const Duration(milliseconds: 400));
+        final newAccess =
+            'mock-access-token-${DateTime.now().millisecondsSinceEpoch}';
+        token = newAccess;
+        refresh = 'mock-refresh-token';
+        await SecureHelper.instance.saveTokens(
+          accessToken: newAccess,
+          refreshToken: refresh,
+        );
+        AppLogger.i('Access token refreshed (mock)');
+        return newAccess;
+      }
 
       final res = await _refreshDio.post(
         ApiConstants.refreshToken,
@@ -208,17 +247,23 @@ class AppClient {
     );
   }
 
-  Future<void> _forceLogout() async {
+  /// Signs the user out: cancels the session, clears tokens, and returns to
+  /// login. Shows the "session expired" message only when [expired] is true
+  /// (auto-logout); a manual logout stays silent.
+  Future<void> logout({bool expired = false}) async {
+    SessionManager.instance.cancel();
     token = '';
     refresh = '';
     await SecureHelper.instance.clearAll();
-    SnackBarUtils.show(
-      'Session expired. Please log in again.',
-      type: SnackType.error,
-    );
+    if (expired) {
+      SnackBarUtils.show(
+        'Session expired. Please log in again.',
+        type: SnackType.error,
+      );
+    }
     final ctx = navigatorKey.currentContext;
     if (ctx != null && ctx.mounted) {
-      // Navigate to login — imported lazily to avoid circular import
+      // '/' resolves to the MaterialApp `home` (LoginScreen).
       navigatorKey.currentState?.pushNamedAndRemoveUntil('/', (r) => false);
     }
   }

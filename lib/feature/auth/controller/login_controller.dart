@@ -3,6 +3,7 @@ import 'package:doc_genie/common/generic_state.dart';
 import 'package:doc_genie/feature/auth/model/login_model.dart';
 import 'package:doc_genie/feature/auth/repository/auth_repository.dart';
 import 'package:doc_genie/services/secure_helper.dart';
+import 'package:doc_genie/services/session_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 final loginControllerProvider =
@@ -34,6 +35,7 @@ class LoginController extends StateNotifier<GenericState> {
         }
         AppClient.token = model.accessToken;
         AppClient.refresh = model.refreshToken;
+        SessionManager.instance.start();
         state = LoadedState<LoginModel>(response: model);
       },
       onfailure: (exception) {

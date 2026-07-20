@@ -4,12 +4,10 @@ import 'package:doc_genie/common/app_client.dart';
 import 'package:doc_genie/constants/color_const.dart';
 import 'package:doc_genie/constants/text_styles.dart';
 import 'package:doc_genie/feature/auth/model/login_model.dart';
-import 'package:doc_genie/feature/auth/screen/login_screen.dart';
 import 'package:doc_genie/feature/checker/screen/checker_screen.dart';
 import 'package:doc_genie/feature/home/screen/home_screen.dart';
 import 'package:doc_genie/feature/maker/screen/maker_screen.dart';
 import 'package:doc_genie/services/secure_helper.dart';
-import 'package:doc_genie/utils/navigator_utils.dart';
 import 'package:doc_genie/widgets/app_card.dart';
 import 'package:flutter/material.dart';
 
@@ -102,10 +100,8 @@ class _MainShellState extends State<MainShell> {
   void _select(int index) => setState(() => _index = index);
 
   Future<void> _logout() async {
-    await SecureHelper.instance.clearAll();
-    AppClient.token = '';
-    AppClient.refresh = '';
-    if (mounted) navigateAndRemoveAll(context, const LoginScreen());
+    // Cancels the session, clears tokens, and returns to login (silently).
+    await AppClient.instance.logout();
   }
 
   List<Widget> get _pages {

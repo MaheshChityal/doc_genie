@@ -2,6 +2,7 @@ import 'package:doc_genie/common/app_client.dart';
 import 'package:doc_genie/common/custom_exception.dart';
 import 'package:doc_genie/constants/api_constants.dart';
 import 'package:doc_genie/constants/enum_const.dart';
+import 'package:doc_genie/constants/sample_pdf.dart';
 import 'package:doc_genie/feature/checker/model/checker_models.dart';
 
 class CheckerRepository {
@@ -86,6 +87,7 @@ class CheckerRepository {
         status: statuses[i % statuses.length],
         date: '${(i % 28) + 1} Jul 2026',
         fileName: 'doc_$n.pdf',
+        fileBytes: SamplePdf.bytes,
         fields: {
           'remitterAccountType': 'CASA',
           'remitterAccountNumber': '112233${44000 + i}',
@@ -104,6 +106,8 @@ class CheckerRepository {
     CheckerDocModel(
       id: 'CHK001',
       referenceNumber: 'DG-2026-AUTO001',
+      fileName: 'doc_A001.pdf',
+      fileBytes: SamplePdf.bytes,
       submittedBy: 'M001',
       transactionType: 'RTGS',
       status: 'Pending',
@@ -127,6 +131,8 @@ class CheckerRepository {
     CheckerDocModel(
       id: 'CHK002',
       referenceNumber: 'DG-2026-AUTO002',
+      fileName: 'doc_A002.pdf',
+      fileBytes: SamplePdf.bytes,
       submittedBy: 'M002',
       transactionType: 'NEFT',
       status: 'Pending',
@@ -150,6 +156,8 @@ class CheckerRepository {
     CheckerDocModel(
       id: 'CHK003',
       referenceNumber: 'DG-2026-MAN001',
+      fileName: 'doc_M001.pdf',
+      fileBytes: SamplePdf.bytes,
       submittedBy: 'M001',
       transactionType: 'Fund Transfer',
       status: 'Approved',
@@ -167,6 +175,8 @@ class CheckerRepository {
     CheckerDocModel(
       id: 'CHK004',
       referenceNumber: 'DG-2026-MAN002',
+      fileName: 'doc_M002.pdf',
+      fileBytes: SamplePdf.bytes,
       submittedBy: 'M003',
       transactionType: 'RTGS',
       status: 'Rejected',

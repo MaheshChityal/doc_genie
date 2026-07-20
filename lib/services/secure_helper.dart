@@ -34,6 +34,23 @@ class SecureHelper {
 
   Future<String?> getRole() => _storage.read(SecureKeyConstant.roleKey);
 
+  /// Persists when the current login session expires (ISO-8601). Used to
+  /// enforce the timeout across tab freeze/restore, where in-memory timers
+  /// don't track real elapsed time.
+  Future<void> saveSessionExpiry(DateTime expiry) => _storage.write(
+    SecureKeyConstant.sessionExpiryKey,
+    expiry.toIso8601String(),
+  );
+
+  Future<DateTime?> getSessionExpiry() async {
+    final raw = await _storage.read(SecureKeyConstant.sessionExpiryKey);
+    if (raw == null || raw.isEmpty) return null;
+    return DateTime.tryParse(raw);
+  }
+
+  Future<void> clearSessionExpiry() =>
+      _storage.delete(SecureKeyConstant.sessionExpiryKey);
+
   Future<bool> isLoggedIn() async {
     final token = await getAccessToken();
     return token != null && token.isNotEmpty;

@@ -41,7 +41,7 @@ class ManualRepository {
         return;
       }
       final response = await _client.request(
-        requestType: RequestType.postMultiPartWithToken,
+        requestType: RequestType.postMultiPart,
         url: ApiConstants.manualScan,
         parameter: {'file': bytes},
       );
@@ -93,10 +93,9 @@ class ManualRepository {
       if (code >= 200 && code < 300 && response.data != null) {
         final data = response.data;
         final root = (data is Map && data['data'] is Map) ? data['data'] : data;
-        final refNo = (root is Map
-                ? (root['referenceNumber'] ?? root['id'] ?? '')
-                : '')
-            .toString();
+        final refNo =
+            (root is Map ? (root['referenceNumber'] ?? root['id'] ?? '') : '')
+                .toString();
         onSuccess(refNo);
       } else {
         onfailure(getCustomException(response.data));

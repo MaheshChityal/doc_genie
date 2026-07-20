@@ -203,13 +203,6 @@ class _FilterBar extends StatelessWidget {
       runSpacing: 8,
       children: [
         _FilterChip(
-          label: 'All',
-          count: total,
-          color: ColorConstants.primaryColor,
-          selected: selected == null,
-          onTap: () => onSelect(null),
-        ),
-        _FilterChip(
           label: 'Pending',
           count: pending,
           color: ColorConstants.warningColor,
@@ -229,6 +222,13 @@ class _FilterBar extends StatelessWidget {
           color: ColorConstants.errorColor,
           selected: selected == 'Rejected',
           onTap: () => onSelect('Rejected'),
+        ),
+        _FilterChip(
+          label: 'All',
+          count: total,
+          color: ColorConstants.primaryColor,
+          selected: selected == null,
+          onTap: () => onSelect(null),
         ),
       ],
     );

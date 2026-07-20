@@ -2,6 +2,7 @@ import 'package:doc_genie/common/app_client.dart';
 import 'package:doc_genie/common/custom_exception.dart';
 import 'package:doc_genie/constants/api_constants.dart';
 import 'package:doc_genie/constants/enum_const.dart';
+import 'package:doc_genie/constants/sample_pdf.dart';
 import 'package:doc_genie/feature/maker/model/auto_doc_model.dart';
 import 'package:doc_genie/feature/maker/model/scan_models.dart';
 
@@ -173,6 +174,7 @@ class AutoRepository {
       return AutoDocModel.fromJson({
         'id': id,
         'fileName': 'scan_${id.toString().padLeft(3, '0')}.pdf',
+        'fileBytes': SamplePdf.base64,
         'makerBy': 'M00${(i % 5) + 1}',
         'status': statuses[i % statuses.length],
         'remitterAccountType': '',
