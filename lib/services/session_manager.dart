@@ -28,6 +28,7 @@ class SessionManager {
     _expiresAt = DateTime.now().add(AppConfig.sessionDuration);
     // Persist so the timeout can be re-checked after a tab freeze/restore.
     SecureHelper.instance.saveSessionExpiry(_expiresAt!);
+    _dismissDialog();
     _schedule();
   }
 
@@ -81,6 +82,7 @@ class SessionManager {
   }
 
   Future<void> _showWarningDialog() async {
+    if (_dialogOpen) return;
     final ctx = navigatorKey.currentContext;
     if (ctx == null || !ctx.mounted) return;
     _dialogOpen = true;

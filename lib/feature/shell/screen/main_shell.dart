@@ -7,6 +7,7 @@ import 'package:doc_genie/feature/auth/model/login_model.dart';
 import 'package:doc_genie/feature/checker/screen/checker_screen.dart';
 import 'package:doc_genie/feature/home/screen/home_screen.dart';
 import 'package:doc_genie/feature/maker/screen/maker_screen.dart';
+import 'package:doc_genie/feature/report/screen/report_screen.dart';
 import 'package:doc_genie/services/secure_helper.dart';
 import 'package:doc_genie/widgets/app_card.dart';
 import 'package:flutter/material.dart';
@@ -38,6 +39,12 @@ const _makerSections = <_Section>[
     subtitle: 'Upload, scan, and submit banking documents',
     accent: ColorConstants.accentColor,
   ),
+  _Section(
+    label: 'Report',
+    icon: Icons.bar_chart_rounded,
+    subtitle: 'Document statistics and transaction breakdown',
+    accent: ColorConstants.infoColor,
+  ),
 ];
 
 const _checkerSections = <_Section>[
@@ -52,6 +59,12 @@ const _checkerSections = <_Section>[
     icon: Icons.fact_check_outlined,
     subtitle: 'Review and authorise submitted documents',
     accent: ColorConstants.secondaryColor,
+  ),
+  _Section(
+    label: 'Report',
+    icon: Icons.bar_chart_rounded,
+    subtitle: 'Document statistics and transaction breakdown',
+    accent: ColorConstants.infoColor,
   ),
 ];
 
@@ -106,9 +119,9 @@ class _MainShellState extends State<MainShell> {
 
   List<Widget> get _pages {
     if (_isChecker) {
-      return [const HomeScreen(), const CheckerScreen()];
+      return [const HomeScreen(), const CheckerScreen(), const ReportScreen()];
     }
-    return [const HomeScreen(), const MakerScreen()];
+    return [const HomeScreen(), const MakerScreen(), const ReportScreen()];
   }
 
   @override

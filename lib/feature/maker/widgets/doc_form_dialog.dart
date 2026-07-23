@@ -117,14 +117,14 @@ class _DocFormDialogState extends State<_DocFormDialog> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       Expanded(
-                        flex: 5,
+                        flex: 3,
                         child: DocumentPreviewPane(
                           fileName: widget.fileName,
                           fileBytes: widget.fileBytes,
                         ),
                       ),
                       const VerticalDivider(width: 1),
-                      Expanded(flex: 6, child: form),
+                      Expanded(flex: 7, child: form),
                     ],
                   );
                 },
@@ -139,15 +139,17 @@ class _DocFormDialogState extends State<_DocFormDialog> {
   Widget _formPane() {
     return Column(
       children: [
+        // Row 1 — compact 3-column form fields.
         Expanded(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(16),
             child: TransactionForm(
               key: _formKey,
               type: widget.type,
               initialValues: widget.initialValues,
               readOnly: !_editable,
               showActions: false,
+              maxColumns: 3,
               onSubmit: (fields, isEdited) {
                 if (!_editable) return;
                 _handleSubmit(fields, isEdited);
@@ -155,7 +157,7 @@ class _DocFormDialogState extends State<_DocFormDialog> {
             ),
           ),
         ),
-        // Pinned Submit — stays put while the fields scroll.
+        // Row 2 — pinned Submit button.
         if (_editable) ...[
           const Divider(height: 1),
           Padding(

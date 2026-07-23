@@ -22,4 +22,6 @@ class ApiConstants {
   static const String checkerDocs = '${AppConfig.baseUrl}checker/documents';
   static String checkerDecide(String id) =>
       '${AppConfig.baseUrl}checker/documents/$id/decide';
+
+  static const String report = '${AppConfig.baseUrl}report/summary';
 }

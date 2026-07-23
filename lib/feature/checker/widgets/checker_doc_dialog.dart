@@ -16,7 +16,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// The document fields scroll within the dialog while the Approve / Reject
 /// actions stay pinned at the bottom. Tapping an action opens the remark
 /// dialog and then submits the decision.
-Future<void> showCheckerDocDialog(
+Future<void> showCheckerDocDialog(    
   BuildContext context, {
   required CheckerDocModel doc,
 }) {
@@ -37,58 +37,23 @@ class _CheckerDocDialog extends ConsumerStatefulWidget {
 }
 
 class _CheckerDocDialogState extends ConsumerState<_CheckerDocDialog> {
+  final TextEditingController _remarkController = TextEditingController();
+  bool _remarkError = false;
+
   CheckerDocModel get _doc => widget.doc;
 
-  Future<void> _confirmDecision(String decision) async {
-    final remarkController = TextEditingController();
-    final isApprove = decision == 'Approved';
+  @override
+  void dispose() {
+    _remarkController.dispose();
+    super.dispose();
+  }
 
-    final confirmed = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        title: Text(isApprove ? 'Approve Document' : 'Reject Document'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Add a remark before ${isApprove ? 'approving' : 'rejecting'} this document.',
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: remarkController,
-              maxLines: 3,
-              autofocus: true,
-              decoration: const InputDecoration(
-                hintText: 'Enter your remark…',
-                border: OutlineInputBorder(),
-                contentPadding: EdgeInsets.all(12),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            style: FilledButton.styleFrom(
-              backgroundColor: isApprove
-                  ? ColorConstants.successColor
-                  : ColorConstants.errorColor,
-            ),
-            child: Text(isApprove ? 'Approve' : 'Reject'),
-          ),
-        ],
-      ),
-    );
-    remarkController.dispose();
-    if (confirmed == true && mounted) {
-      await _decide(decision);
+  void _tryDecision(String decision) {
+    if (_remarkController.text.trim().isEmpty) {
+      setState(() => _remarkError = true);
+      return;
     }
+    _decide(decision);
   }
 
   Future<void> _decide(String decision) async {
@@ -137,14 +102,14 @@ class _CheckerDocDialogState extends ConsumerState<_CheckerDocDialog> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       Expanded(
-                        flex: 5,
+                        flex: 3,
                         child: DocumentPreviewPane(
                           fileName: _doc.fileName,
                           fileBytes: _doc.fileBytes,
                         ),
                       ),
                       const VerticalDivider(width: 1),
-                      Expanded(flex: 6, child: detail),
+                      Expanded(flex: 7, child: detail),
                     ],
                   );
                 },
@@ -159,25 +124,43 @@ class _CheckerDocDialogState extends ConsumerState<_CheckerDocDialog> {
   Widget _detailPane(TransactionType type, bool decided) {
     return Column(
       children: [
+        // Row 1 — compact 3-column read-only form fields.
         Expanded(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Document Details', style: AppTextStyles.subtitle),
-                const SizedBox(height: 12),
-                TransactionForm(
-                  type: type,
-                  initialValues: _doc.fields,
-                  readOnly: true,
-                  onSubmit: (fields, isEdited) {},
-                ),
-              ],
+            padding: const EdgeInsets.all(16),
+            child: TransactionForm(
+              type: type,
+              initialValues: _doc.fields,
+              readOnly: true,
+              showActions: false,
+              maxColumns: 3,
+              onSubmit: (_, __) {},
             ),
           ),
         ),
-        // Pinned action bar — stays put while the content above scrolls.
+        // Row 2 — mandatory remarks input (pending docs only).
+        if (!decided) ...[
+          const Divider(height: 1),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+            child: TextField(
+              controller: _remarkController,
+              maxLines: 2,
+              onChanged: (_) {
+                if (_remarkError) setState(() => _remarkError = false);
+              },
+              decoration: InputDecoration(
+                labelText: 'Remarks *',
+                hintText: 'Add a remark before deciding…',
+                border: const OutlineInputBorder(),
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                errorText: _remarkError ? 'Remark is required' : null,
+              ),
+            ),
+          ),
+        ],
+        // Row 3 — pinned Approve / Reject actions (pending docs only).
         if (!decided) ...[
           const Divider(height: 1),
           Padding(
@@ -186,7 +169,7 @@ class _CheckerDocDialogState extends ConsumerState<_CheckerDocDialog> {
               children: [
                 Expanded(
                   child: OutlinedButton.icon(
-                    onPressed: () => _confirmDecision('Rejected'),
+                    onPressed: () => _tryDecision('Rejected'),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: ColorConstants.errorColor,
                       side: const BorderSide(color: ColorConstants.errorColor),
@@ -199,7 +182,7 @@ class _CheckerDocDialogState extends ConsumerState<_CheckerDocDialog> {
                 const SizedBox(width: 16),
                 Expanded(
                   child: FilledButton.icon(
-                    onPressed: () => _confirmDecision('Approved'),
+                    onPressed: () => _tryDecision('Approved'),
                     style: FilledButton.styleFrom(
                       backgroundColor: ColorConstants.successColor,
                       padding: const EdgeInsets.symmetric(vertical: 14),
